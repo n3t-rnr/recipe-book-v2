@@ -1,0 +1,194 @@
+/*
+ * Design tokens, approved in M1 (direction C "Bildlastig", docs/design/README.md).
+ * Values are copied from the approved token sheet without rounding (NF-16). This is the only place in
+ * client/src where color literals are allowed (NF-12); everything else uses var(--…).
+ *
+ * Derived colors were computed in oklch against the palette and stored as fixed values; the comment next
+ * to each one names the source color and the oklch delta (ΔL, and ΔC/Δh where they matter). Browsers never
+ * compute relative colors at runtime (chapter 6.7).
+ *
+ * Palette (oklch): Linen #EFE6DD = oklch(0.930 0.016 67.6), Raisin Black #231F20 = oklch(0.244 0.006 0.6),
+ * Terracotta #BB4430 = oklch(0.548 0.158 31.9), Moonstone #7EBDC2 = oklch(0.758 0.065 202.2),
+ * Vanilla #F3DFA2 = oklch(0.906 0.081 92.1).
+ *
+ * Theme switch (NF-14): light on :root; dark via prefers-color-scheme unless the page carries
+ * data-theme="light", and via data-theme="dark" regardless of the system. Both dark blocks must stay
+ * identical (tests/unit/contrast.test.ts checks this).
+ */
+
+/* biome-ignore format: keep the approved upper-case hex spelling of the token sheet (grep-able against the design) */
+:root {
+  /* ---- Surfaces and text ---- */
+  --color-bg: #EFE6DD; /* Linen */
+  --color-surface: #F6EDE4; /* Linen, oklch L +0.021 */
+  --color-surface-raised: #FBF6F1; /* Linen, oklch L +0.046, C −0.007 */
+  --color-input-bg: #FBF6F1; /* = --color-surface-raised */
+  --color-text: #231F20; /* Raisin Black, 13.22:1 on Linen */
+  --color-text-muted: #4A4445; /* Raisin Black, oklch L +0.149 */
+  --color-border: rgba(35, 31, 32, 0.14); /* Raisin Black, alpha 0.14 */
+  --color-border-strong: #827D7E; /* Raisin Black, oklch L +0.350 */
+
+  /* ---- Palette roles ---- */
+  --color-primary: #BB4430; /* Terracotta */
+  --color-on-primary: #FFFFFF; /* neutral white, oklch(1 0 0), 5.27:1 on Terracotta */
+  --color-primary-text: #A33A29; /* Terracotta, oklch L −0.053, C −0.015 */
+  --color-danger-text: var(--color-primary-text);
+  --color-secondary: #7EBDC2; /* Moonstone: surface only, always with --color-ink */
+  --color-highlight: #F3DFA2; /* Vanilla: surface only, always with --color-ink */
+  --color-ink: #231F20; /* Raisin Black: text on secondary, highlight and placeholder surfaces */
+  --color-on-dark: #FFFFFF; /* white text on the dark avatar colors (#A33A29, #216267) */
+
+  /* ---- Navigation ---- */
+  --color-nav: #231F20; /* Raisin Black */
+  --color-nav-border: transparent;
+  --color-nav-text: #EFE6DD; /* Linen */
+  --color-nav-active: #D9634F; /* Terracotta, oklch L +0.092 */
+  --color-nav-active-icon: #231F20; /* Raisin Black */
+
+  /* ---- Overlays, icons, feedback ---- */
+  --color-overlay: rgba(246, 237, 228, 0.92); /* --color-surface, alpha 0.92 (round button on photos) */
+  --color-overlay-border: rgba(35, 31, 32, 0.2); /* Raisin Black, alpha 0.2 */
+  --color-heart: #BB4430; /* Terracotta */
+  --color-star-stroke: #231F20; /* Raisin Black: outline of a filled star */
+  --color-star-empty: #827D7E; /* = --color-border-strong: outline of an empty star */
+  --color-scrim: rgba(35, 31, 32, 0.45); /* Raisin Black, alpha 0.45 */
+  --color-shadow: rgba(35, 31, 32, 0.22); /* Raisin Black, alpha 0.22 */
+  --color-subtle: rgba(35, 31, 32, 0.08); /* Raisin Black, alpha 0.08 (skeletons, disabled) */
+  --color-focus: #231F20; /* Raisin Black */
+  --color-toast-bg: #231F20; /* Raisin Black */
+  --color-toast-text: #EFE6DD; /* Linen */
+
+  /* ---- Placeholder image surfaces (F-16): color = recipe id mod 4; same in both modes ---- */
+  --placeholder-1: #F3DFA2; /* Vanilla */
+  --placeholder-2: #7EBDC2; /* Moonstone */
+  --placeholder-3: #E8B7A9; /* Terracotta, oklch L +0.272, C −0.097, h +4.6 */
+  --placeholder-4: #DCCFC2; /* Linen, oklch L −0.068, C +0.007 */
+
+  /* ---- Avatar colors (surface / initial) ---- */
+  --avatar-1: #BB4430; /* Terracotta */
+  --avatar-1-fg: #FFFFFF;
+  --avatar-2: #7EBDC2; /* Moonstone */
+  --avatar-2-fg: #231F20;
+  --avatar-3: #F3DFA2; /* Vanilla */
+  --avatar-3-fg: #231F20;
+  --avatar-4: #231F20; /* Raisin Black */
+  --avatar-4-fg: #EFE6DD;
+  --avatar-5: #A33A29; /* Terracotta, oklch L −0.053, C −0.015 */
+  --avatar-5-fg: #FFFFFF;
+  --avatar-6: #216267; /* Moonstone, oklch L −0.300 */
+  --avatar-6-fg: #FFFFFF;
+
+  /* ---- Typography (fonts are self-hosted from M2 on; until then the fallbacks apply) ---- */
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+
+  /* Type scale from the token sheet: size / weight (display = Bricolage, others = Figtree) */
+  --text-screen: 2.25rem; /* 36px, screen title */
+  --text-screen-weight: 800;
+  --text-section: 1.625rem; /* 26px, section heading */
+  --text-section-weight: 700;
+  --text-card: 1.5rem; /* 24px, card title */
+  --text-card-weight: 700;
+  --text-step-head: 1.25rem; /* 20px, step heading */
+  --text-step-head-weight: 800;
+  --text-step: 1.125rem; /* 18px, preparation steps */
+  --text-step-weight: 400;
+  --text-body: 1.0625rem; /* 17px, body text */
+  --text-body-weight: 400;
+  --text-label: 0.9375rem; /* 15px, labels */
+  --text-label-weight: 700;
+  --text-meta: 0.875rem; /* 14px, meta line */
+  --text-meta-weight: 600;
+  --text-nav: 0.75rem; /* 12px, navigation label */
+  --text-nav-weight: 700;
+  --leading-body: 1.5;
+  --leading-heading: 1.3;
+
+  /* ---- Radii ---- */
+  --radius-chip: 22px; /* chip, pill, search field */
+  --radius-card: 24px;
+  --radius-tile: 18px;
+  --radius-row: 16px;
+  --radius-input: 12px;
+  --radius-sheet: 28px; /* sheet, dialog */
+
+  /* ---- Spacing grid and tap targets ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px; /* page margin on phones */
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px; /* sheet padding on the canvas */
+  --page-margin: 20px;
+  --tap-min: 44px;
+  --tap-kitchen: 48px; /* heart, stars, save */
+  --fab-size: 60px;
+}
+
+/* biome-ignore format: keep the approved upper-case hex spelling of the token sheet (grep-able against the design) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #231F20; /* Raisin Black */
+    --color-surface: #2F2B2C; /* Raisin Black, oklch L +0.050 */
+    --color-surface-raised: #373334; /* Raisin Black, oklch L +0.081 */
+    --color-input-bg: #2F2B2C; /* = --color-surface */
+    --color-text: #EFE6DD; /* Linen */
+    --color-text-muted: #C9BFB6; /* Linen, oklch L −0.119 */
+    --color-border: rgba(239, 230, 221, 0.14); /* Linen, alpha 0.14 */
+    --color-border-strong: #90877F; /* Linen, oklch L −0.301 */
+    --color-primary: #D9634F; /* Terracotta, oklch L +0.092 */
+    --color-on-primary: #231F20; /* Raisin Black, 4.54:1 on #D9634F */
+    --color-primary-text: #F57C67; /* #D9634F, oklch L +0.080 */
+    --color-nav: #373334; /* Raisin Black, oklch L +0.081 */
+    --color-nav-border: rgba(239, 230, 221, 0.14); /* Linen, alpha 0.14 */
+    --color-overlay: rgba(47, 43, 44, 0.92); /* --color-surface, alpha 0.92 */
+    --color-overlay-border: rgba(239, 230, 221, 0.2); /* Linen, alpha 0.2 */
+    --color-heart: #D9634F; /* Terracotta, oklch L +0.092 */
+    --color-star-stroke: #EFE6DD; /* Linen */
+    --color-star-empty: #90877F; /* = --color-border-strong */
+    --color-scrim: rgba(0, 0, 0, 0.55); /* black, alpha 0.55 */
+    --color-shadow: rgba(0, 0, 0, 0.45); /* black, alpha 0.45 */
+    --color-subtle: rgba(239, 230, 221, 0.08); /* Linen, alpha 0.08 */
+    --color-focus: #EFE6DD; /* Linen */
+    --color-toast-bg: #EFE6DD; /* Linen */
+    --color-toast-text: #231F20; /* Raisin Black */
+    --avatar-1: #D9634F; /* Terracotta, oklch L +0.092 */
+    --avatar-1-fg: #231F20;
+    --avatar-4: #EFE6DD; /* Linen */
+    --avatar-4-fg: #231F20;
+  }
+}
+
+/* biome-ignore format: keep the approved upper-case hex spelling of the token sheet (grep-able against the design) */
+:root[data-theme="dark"] {
+  --color-bg: #231F20; /* Raisin Black */
+  --color-surface: #2F2B2C; /* Raisin Black, oklch L +0.050 */
+  --color-surface-raised: #373334; /* Raisin Black, oklch L +0.081 */
+  --color-input-bg: #2F2B2C; /* = --color-surface */
+  --color-text: #EFE6DD; /* Linen */
+  --color-text-muted: #C9BFB6; /* Linen, oklch L −0.119 */
+  --color-border: rgba(239, 230, 221, 0.14); /* Linen, alpha 0.14 */
+  --color-border-strong: #90877F; /* Linen, oklch L −0.301 */
+  --color-primary: #D9634F; /* Terracotta, oklch L +0.092 */
+  --color-on-primary: #231F20; /* Raisin Black, 4.54:1 on #D9634F */
+  --color-primary-text: #F57C67; /* #D9634F, oklch L +0.080 */
+  --color-nav: #373334; /* Raisin Black, oklch L +0.081 */
+  --color-nav-border: rgba(239, 230, 221, 0.14); /* Linen, alpha 0.14 */
+  --color-overlay: rgba(47, 43, 44, 0.92); /* --color-surface, alpha 0.92 */
+  --color-overlay-border: rgba(239, 230, 221, 0.2); /* Linen, alpha 0.2 */
+  --color-heart: #D9634F; /* Terracotta, oklch L +0.092 */
+  --color-star-stroke: #EFE6DD; /* Linen */
+  --color-star-empty: #90877F; /* = --color-border-strong */
+  --color-scrim: rgba(0, 0, 0, 0.55); /* black, alpha 0.55 */
+  --color-shadow: rgba(0, 0, 0, 0.45); /* black, alpha 0.45 */
+  --color-subtle: rgba(239, 230, 221, 0.08); /* Linen, alpha 0.08 */
+  --color-focus: #EFE6DD; /* Linen */
+  --color-toast-bg: #EFE6DD; /* Linen */
+  --color-toast-text: #231F20; /* Raisin Black */
+  --avatar-1: #D9634F; /* Terracotta, oklch L +0.092 */
+  --avatar-1-fg: #231F20;
+  --avatar-4: #EFE6DD; /* Linen */
+  --avatar-4-fg: #231F20;
+}

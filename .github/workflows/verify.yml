@@ -1,0 +1,32 @@
+# Quality gate (NF-28, Kap. 9.2): the same `pnpm verify` that must be green locally before every commit.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # pnpm comes in the version pinned by "packageManager" in package.json.
+      - run: corepack enable
+
+      # better-sqlite3 and sharp ship prebuilt linux-x64 binaries; no build scripts are needed.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm verify

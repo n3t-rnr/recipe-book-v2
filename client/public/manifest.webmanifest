@@ -1,0 +1,11 @@
+{
+  "name": "Rezepte",
+  "short_name": "Rezepte",
+  "lang": "de",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EFE6DD",
+  "theme_color": "#EFE6DD",
+  "icons": []
+}
