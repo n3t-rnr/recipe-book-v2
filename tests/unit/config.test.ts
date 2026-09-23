@@ -59,7 +59,8 @@ describe('loadConfig() with values', () => {
     expect(config.env).toBe('production');
     expect(config.port).toBe(8090);
     expect(config.host).toBe('0.0.0.0');
-    expect(config.dataDir).toBe(path.resolve('C:/RezepteApp/data'));
+    // Absolute on Windows; on Linux (CI) "C:/…" is relative and resolves against cwd, like the code does.
+    expect(config.dataDir).toBe(path.resolve(CWD, 'C:/RezepteApp/data'));
     expect(config.publicUrl).toBe('http://rezepte.fritz.box:8090');
     expect(config.backupKeep).toBe(7);
     expect(config.trashDays).toBe(60);
