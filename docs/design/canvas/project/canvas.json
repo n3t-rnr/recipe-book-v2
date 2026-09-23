@@ -1,0 +1,369 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-23T14:30:00Z"
+  },
+  "title": "Rezepte-App Design",
+  "launch": {
+    "view": "canvas",
+    "page": "mockups"
+  },
+  "pages": [
+    {
+      "id": "mockups",
+      "name": "Mockups C"
+    },
+    {
+      "id": "richtungen",
+      "name": "Richtungen"
+    }
+  ],
+  "boards": {
+    "HandyProfilHell.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Handy hell · Profilwahl"
+    },
+    "Main.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Handy hell · Rezeptliste"
+    },
+    "HandyFilterHell.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Handy hell · Filter"
+    },
+    "HandyDetailHell.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 2300,
+      "title": "Handy hell · Rezeptdetail"
+    },
+    "HandyEditorHell.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 2000,
+      "title": "Handy hell · Neues Rezept"
+    },
+    "HandyFavoritenHell.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Handy hell · Favoriten"
+    },
+    "HandyProfilDunkel.dc.html": {
+      "x": 0,
+      "y": 2720,
+      "w": 390,
+      "h": 844,
+      "title": "Handy dunkel · Profilwahl"
+    },
+    "HandyListeDunkel.dc.html": {
+      "x": 470,
+      "y": 2720,
+      "w": 390,
+      "h": 844,
+      "title": "Handy dunkel · Rezeptliste"
+    },
+    "HandyFilterDunkel.dc.html": {
+      "x": 940,
+      "y": 2720,
+      "w": 390,
+      "h": 844,
+      "title": "Handy dunkel · Filter"
+    },
+    "HandyDetailDunkel.dc.html": {
+      "x": 1410,
+      "y": 2720,
+      "w": 390,
+      "h": 2300,
+      "title": "Handy dunkel · Rezeptdetail"
+    },
+    "HandyEditorDunkel.dc.html": {
+      "x": 1880,
+      "y": 2720,
+      "w": 390,
+      "h": 2000,
+      "title": "Handy dunkel · Neues Rezept"
+    },
+    "HandyFavoritenDunkel.dc.html": {
+      "x": 2350,
+      "y": 2720,
+      "w": 390,
+      "h": 844,
+      "title": "Handy dunkel · Favoriten"
+    },
+    "TabletQuerHell.dc.html": {
+      "x": 0,
+      "y": 5440,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer hell · Liste und Detail"
+    },
+    "TabletQuerEditorHell.dc.html": {
+      "x": 1104,
+      "y": 5440,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer hell · Rezept bearbeiten"
+    },
+    "TabletQuerFilterHell.dc.html": {
+      "x": 2208,
+      "y": 5440,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer hell · Filter-Panel"
+    },
+    "TabletQuerDunkel.dc.html": {
+      "x": 0,
+      "y": 6628,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer dunkel · Liste und Detail"
+    },
+    "TabletQuerEditorDunkel.dc.html": {
+      "x": 1104,
+      "y": 6628,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer dunkel · Rezept bearbeiten"
+    },
+    "TabletQuerFilterDunkel.dc.html": {
+      "x": 2208,
+      "y": 6628,
+      "w": 1024,
+      "h": 768,
+      "title": "Tablet quer dunkel · Filter-Panel"
+    },
+    "TabletHochListeHell.dc.html": {
+      "x": 0,
+      "y": 7816,
+      "w": 768,
+      "h": 1024,
+      "title": "Tablet hochkant hell · Rezeptliste"
+    },
+    "TabletHochDetailHell.dc.html": {
+      "x": 848,
+      "y": 7816,
+      "w": 768,
+      "h": 1800,
+      "title": "Tablet hochkant hell · Rezeptdetail"
+    },
+    "TabletHochListeDunkel.dc.html": {
+      "x": 1696,
+      "y": 7816,
+      "w": 768,
+      "h": 1024,
+      "title": "Tablet hochkant dunkel · Rezeptliste"
+    },
+    "TabletHochDetailDunkel.dc.html": {
+      "x": 2544,
+      "y": 7816,
+      "w": 768,
+      "h": 1800,
+      "title": "Tablet hochkant dunkel · Rezeptdetail"
+    },
+    "KomponentenHell.dc.html": {
+      "x": 0,
+      "y": 10036,
+      "w": 1240,
+      "h": 2000,
+      "title": "Komponenten und Zustände · hell"
+    },
+    "KomponentenDunkel.dc.html": {
+      "x": 1320,
+      "y": 10036,
+      "w": 1240,
+      "h": 2000,
+      "title": "Komponenten und Zustände · dunkel"
+    },
+    "TokenBlatt.dc.html": {
+      "x": 2640,
+      "y": 10036,
+      "w": 1240,
+      "h": 1800,
+      "title": "Token-Blatt"
+    },
+    "AppIcon.dc.html": {
+      "x": 3960,
+      "y": 10036,
+      "w": 1000,
+      "h": 660,
+      "title": "App-Icon und Favicon"
+    },
+    "WarmListe.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "A · Warm-editorial · Liste",
+      "page": "richtungen"
+    },
+    "WarmDetail.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 1960,
+      "title": "A · Warm-editorial · Detail",
+      "page": "richtungen"
+    },
+    "FunktionalListe.dc.html": {
+      "x": 1100,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "B · Klar-funktional · Liste",
+      "page": "richtungen"
+    },
+    "FunktionalDetail.dc.html": {
+      "x": 1570,
+      "y": 0,
+      "w": 390,
+      "h": 1960,
+      "title": "B · Klar-funktional · Detail",
+      "page": "richtungen"
+    },
+    "BildListe.dc.html": {
+      "x": 2200,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "C · Bildlastig · Liste (gewählt)",
+      "page": "richtungen"
+    },
+    "BildDetail.dc.html": {
+      "x": 2670,
+      "y": 0,
+      "w": 390,
+      "h": 1960,
+      "title": "C · Bildlastig · Detail (gewählt)",
+      "page": "richtungen"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "HandyProfilHell.dc.html",
+    "HandyFilterHell.dc.html",
+    "HandyDetailHell.dc.html",
+    "HandyEditorHell.dc.html",
+    "HandyFavoritenHell.dc.html",
+    "HandyProfilDunkel.dc.html",
+    "HandyListeDunkel.dc.html",
+    "HandyFilterDunkel.dc.html",
+    "HandyDetailDunkel.dc.html",
+    "HandyEditorDunkel.dc.html",
+    "HandyFavoritenDunkel.dc.html",
+    "TabletQuerHell.dc.html",
+    "TabletQuerEditorHell.dc.html",
+    "TabletQuerFilterHell.dc.html",
+    "TabletQuerDunkel.dc.html",
+    "TabletQuerEditorDunkel.dc.html",
+    "TabletQuerFilterDunkel.dc.html",
+    "TabletHochListeHell.dc.html",
+    "TabletHochDetailHell.dc.html",
+    "TabletHochListeDunkel.dc.html",
+    "TabletHochDetailDunkel.dc.html",
+    "KomponentenHell.dc.html",
+    "KomponentenDunkel.dc.html",
+    "TokenBlatt.dc.html",
+    "AppIcon.dc.html",
+    "WarmListe.dc.html",
+    "WarmDetail.dc.html",
+    "FunktionalListe.dc.html",
+    "FunktionalDetail.dc.html",
+    "BildListe.dc.html",
+    "BildDetail.dc.html"
+  ],
+  "notes": {
+    "row-phone-light": {
+      "x": 0,
+      "y": -300,
+      "text": "Handy · Hell (390×844)",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "row-phone-dark": {
+      "x": 0,
+      "y": 2420,
+      "text": "Handy · Dunkel",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "row-tab-l-light": {
+      "x": 0,
+      "y": 5140,
+      "text": "Tablet quer · Hell (1024×768)",
+      "kind": "title1",
+      "maxW": 3232
+    },
+    "row-tab-l-dark": {
+      "x": 0,
+      "y": 6328,
+      "text": "Tablet quer · Dunkel",
+      "kind": "title1",
+      "maxW": 3232
+    },
+    "row-tab-p": {
+      "x": 0,
+      "y": 7516,
+      "text": "Tablet hochkant (768×1024)",
+      "kind": "title1",
+      "maxW": 3312
+    },
+    "row-basics": {
+      "x": 0,
+      "y": 9736,
+      "text": "Grundlagen",
+      "kind": "title1",
+      "maxW": 4960
+    },
+    "hint-photos": {
+      "x": 2820,
+      "y": 0,
+      "w": 360,
+      "text": "Dunkle Flächen mit Bildsymbol stehen im Mockup für echte Fotos.\n\nRezepte ohne Foto zeigen das Platzhalterbild: ein Teller mit Besteck und dem Anfangsbuchstaben des Titels. Die Farbe folgt fest aus der Rezept-ID.\n\nAlle Varianten und Größen stehen im Komponentenblatt unten."
+    },
+    "hint-tablet": {
+      "x": 3312,
+      "y": 5440,
+      "w": 360,
+      "text": "Tablet quer: Navigationsleiste links, Liste 380 px, Detail daneben.\n\nVon 1024 bis 1279 px stehen Zutaten und Schritte im Detail untereinander, ab 1280 px nebeneinander.\n\nFilter öffnen sich als Panel neben der Liste, Änderungen wirken sofort."
+    },
+    "title-a": {
+      "x": 0,
+      "y": -300,
+      "text": "A · Warm-editorial",
+      "kind": "title1",
+      "maxW": 860,
+      "page": "richtungen"
+    },
+    "title-b": {
+      "x": 1100,
+      "y": -300,
+      "text": "B · Klar-funktional",
+      "kind": "title1",
+      "maxW": 860,
+      "page": "richtungen"
+    },
+    "title-c": {
+      "x": 2200,
+      "y": -300,
+      "text": "C · Bildlastig (gewählt)",
+      "kind": "title1",
+      "maxW": 860,
+      "page": "richtungen"
+    }
+  },
+  "designSystems": []
+}

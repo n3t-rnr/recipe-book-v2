@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Klar-funktional – Rezeptliste</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#EFE6DD;color:#231F20;font-family:'Atkinson Hyperlegible','Segoe UI',system-ui,sans-serif}
+a{color:#231F20}a:hover{color:#BB4430}
+button{font:inherit;color:inherit;cursor:pointer}
+input{font:inherit}
+input::placeholder{color:#6B6566;opacity:1}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #EFE6DD; color: #231F20; font-family: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;">
+
+<header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 0 16px;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700;">Rezepte</h1>
+<div style="display: flex; align-items: center; gap: 4px;">
+<button type="button" aria-label="Aktualisieren" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; padding: 0;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"></path><path d="M19.5 4.5v4.5H15"></path></svg></button>
+<button type="button" aria-label="Profil wechseln, aktiv: Anna" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><span style="width: 36px; height: 36px; border-radius: 10px; background: #7EBDC2; color: #231F20; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">A</span></button>
+</div>
+</header>
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px 0;">
+<label style="flex-grow: 1; display: flex; align-items: center; gap: 10px; height: 52px; box-sizing: border-box; padding: 0 12px; border: 1.5px solid #827D7E; border-radius: 12px; background: #F6EDE4;">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+<input type="search" aria-label="Rezepte durchsuchen" placeholder="Rezepte, Zutaten, Tags suchen" style="flex-grow: 1; min-width: 0; border: 0; background: transparent; font-size: 16px; color: #231F20; outline: none; padding: 0;">
+</label>
+<button type="button" aria-label="Filter, 2 aktiv" style="position: relative; flex-shrink: 0; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1.5px solid #827D7E; border-radius: 12px; background: #F6EDE4; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9"></path><path d="M17 7h3"></path><circle cx="15" cy="7" r="2"></circle><path d="M4 17h3"></path><path d="M11 17h9"></path><circle cx="9" cy="17" r="2"></circle></svg><span style="position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; border-radius: 10px; background: #BB4430; color: #FFFFFF; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">2</span></button>
+</div>
+
+<div style="display: flex; gap: 8px; padding: 12px 0 0 16px; overflow: hidden;">
+<button type="button" aria-pressed="true" style="flex-shrink: 0; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 14px 0 10px; border: 0; border-radius: 10px; background: #BB4430; color: #FFFFFF; font-size: 16px; font-weight: 700;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Vegetarisch</button>
+<button type="button" aria-pressed="true" style="flex-shrink: 0; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 14px 0 10px; border: 0; border-radius: 10px; background: #BB4430; color: #FFFFFF; font-size: 16px; font-weight: 700;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Hauptgericht</button>
+<button type="button" aria-pressed="false" style="flex-shrink: 0; height: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #7EBDC2; color: #231F20; font-size: 16px;">Schnell</button>
+<button type="button" aria-pressed="false" style="flex-shrink: 0; height: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #7EBDC2; color: #231F20; font-size: 16px;">Suppe</button>
+<button type="button" aria-pressed="false" style="flex-shrink: 0; height: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #7EBDC2; color: #231F20; font-size: 16px;">Backen</button>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 0 16px;">
+<span style="font-size: 15px; font-weight: 700;">14 von 38 Rezepten</span>
+<button type="button" style="height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border: 0; background: transparent; font-size: 15px;">Sortierung: Neueste<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+
+<div style="display: flex; flex-direction: column; border-top: 1px solid rgba(35,31,32,0.18);">
+
+<article style="display: flex; align-items: center; gap: 12px; padding: 10px 4px 10px 16px; border-bottom: 1px solid rgba(35,31,32,0.18);">
+<div style="flex-shrink: 0; width: 72px; height: 72px; border-radius: 8px; background-color: #F3DFA2; background-image: repeating-linear-gradient(135deg, rgba(35,31,32,0.06) 0 2px, transparent 2px 10px); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path></svg></div>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;">Käsespätzle</h2>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>45 min</span><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F3DFA2" stroke="#231F20" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path></svg>4,3 (3)</span></div>
+<div style="display: flex; gap: 4px;"><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Vegetarisch</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Hauptgericht</span></div>
+</div>
+<button type="button" aria-label="Favorit" aria-pressed="true" style="flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="#BB4430" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></button>
+</article>
+
+<article style="display: flex; align-items: center; gap: 12px; padding: 10px 4px 10px 16px; border-bottom: 1px solid rgba(35,31,32,0.18);">
+<div style="flex-shrink: 0; width: 72px; height: 72px; border-radius: 8px; background-color: rgba(187,68,48,0.22); background-image: repeating-linear-gradient(135deg, rgba(35,31,32,0.06) 0 2px, transparent 2px 10px); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path></svg></div>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;">Ofengemüse mit Feta</h2>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>40 min</span><span>Noch nicht bewertet</span></div>
+<div style="display: flex; gap: 4px;"><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Vegetarisch</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Hauptgericht</span></div>
+</div>
+<button type="button" aria-label="Favorit" aria-pressed="false" style="flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></button>
+</article>
+
+<article style="display: flex; align-items: center; gap: 12px; padding: 10px 4px 10px 16px; border-bottom: 1px solid rgba(35,31,32,0.18);">
+<div style="flex-shrink: 0; width: 72px; height: 72px; border-radius: 8px; background-color: rgba(126,189,194,0.45); background-image: repeating-linear-gradient(135deg, rgba(35,31,32,0.06) 0 2px, transparent 2px 10px); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path></svg></div>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;">Gemüsecurry mit Kichererbsen</h2>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>30 min</span><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F3DFA2" stroke="#231F20" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path></svg>3,8 (2)</span></div>
+<div style="display: flex; gap: 4px;"><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Vegetarisch</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Schnell</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">+1</span></div>
+</div>
+<button type="button" aria-label="Favorit" aria-pressed="false" style="flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></button>
+</article>
+
+<article style="display: flex; align-items: center; gap: 12px; padding: 10px 4px 10px 16px; border-bottom: 1px solid rgba(35,31,32,0.18);">
+<div style="flex-shrink: 0; width: 72px; height: 72px; border-radius: 8px; background-color: #F3DFA2; background-image: repeating-linear-gradient(135deg, rgba(35,31,32,0.06) 0 2px, transparent 2px 10px); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path></svg></div>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;">Spinatknödel mit brauner Butter</h2>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>60 min</span><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F3DFA2" stroke="#231F20" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path></svg>4,5 (2)</span></div>
+<div style="display: flex; gap: 4px;"><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Vegetarisch</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Hauptgericht</span></div>
+</div>
+<button type="button" aria-label="Favorit" aria-pressed="true" style="flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="#BB4430" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></button>
+</article>
+
+<article style="display: flex; align-items: center; gap: 12px; padding: 10px 4px 10px 16px; border-bottom: 1px solid rgba(35,31,32,0.18);">
+<div style="flex-shrink: 0; width: 72px; height: 72px; border-radius: 8px; background-color: rgba(187,68,48,0.22); background-image: repeating-linear-gradient(135deg, rgba(35,31,32,0.06) 0 2px, transparent 2px 10px); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path></svg></div>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25;">Pilzrisotto</h2>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 14px;"><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>35 min</span><span style="display: flex; align-items: center; gap: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F3DFA2" stroke="#231F20" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path></svg>4,0 (1)</span></div>
+<div style="display: flex; gap: 4px;"><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Vegetarisch</span><span style="height: 24px; padding: 0 8px; border-radius: 6px; background: #7EBDC2; font-size: 13px; display: flex; align-items: center;">Hauptgericht</span></div>
+</div>
+<button type="button" aria-label="Favorit" aria-pressed="false" style="flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></button>
+</article>
+
+</div>
+
+<button type="button" style="position: absolute; right: 16px; bottom: 88px; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 20px 0 16px; border: 0; border-radius: 16px; background: #BB4430; color: #FFFFFF; font-size: 16px; font-weight: 700; box-shadow: 0 6px 16px rgba(35,31,32,0.25);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>Neues Rezept</button>
+
+<nav aria-label="Hauptnavigation" style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #F6EDE4; border-top: 1px solid rgba(35,31,32,0.18); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));">
+<button type="button" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; font-size: 13px; font-weight: 700;"><span style="width: 56px; height: 30px; border-radius: 15px; background: rgba(187,68,48,0.16); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#BB4430" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5c2.5-1 5.5-1 8 .5v13c-2.5-1.5-5.5-1.5-8-.5z"></path><path d="M20 5.5c-2.5-1-5.5-1-8 .5v13c2.5-1.5 5.5-1.5 8-.5z"></path></svg></span>Rezepte</button>
+<button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; font-size: 13px;"><span style="width: 56px; height: 30px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path></svg></span>Favoriten</button>
+<button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; font-size: 13px;"><span style="width: 56px; height: 30px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11.8V4.8a1.3 1.3 0 0 1 1.3-1.3h7l8.4 8.4a1.3 1.3 0 0 1 0 1.8l-6.8 6.8a1.3 1.3 0 0 1-1.8 0z"></path><circle cx="8.3" cy="8.3" r="1.4"></circle></svg></span>Tags</button>
+<button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; font-size: 13px;"><span style="width: 56px; height: 30px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="18.5" cy="12" r="1.7"></circle></svg></span>Mehr</button>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
