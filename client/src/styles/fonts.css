@@ -1,0 +1,69 @@
+/*
+ * Self-hosted fonts (NF-15, approved design): Bricolage Grotesque for headings (700–800) and Figtree
+ * for text (400–700), both variable in weight, subset from Google Fonts (SIL OFL 1.1, license texts in
+ * ../assets/fonts/). Vite hashes the files under /assets/ (NF-01, NF-15).
+ *
+ * Each family comes in two subsets. "core" covers Basic Latin, äöüÄÖÜß, typographic quotes and dashes,
+ * …, €, ·, −, °, «», Ø, × and ½ ¼ ¾ ⅓ ⅔ ⅛; the first view needs only these two files (50.4 KB,
+ * NF-01: ≤ 2 files, ≤ 60 KB). "ext" holds the rest of Latin-1 and all vulgar fractions (U+2150–215E);
+ * browsers load it only when a page contains one of its characters. The core rule is declared last so it
+ * wins where the ranges overlap (CSS Fonts 4, unicode-range).
+ *
+ * Bricolage has an optical-size axis; the design canvas rendered it with opsz = font size. The full
+ * axis costs 69 KB, so the subset is pinned at opsz 28, between the 24 px card titles and the 36 px
+ * screen titles. Figtree has no such axis.
+ */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 700 800;
+  font-display: swap;
+  src: url("../assets/fonts/bricolage-grotesque-ext.woff2") format("woff2");
+  unicode-range:
+    U+a1-aa, U+ac-af, U+b1-b6, U+b8-ba, U+bf-c3, U+c5-ca, U+cc-ce, U+d0-d5, U+d9-db, U+dd-de, U+e0-e3,
+    U+e5-ea, U+ec-ee, U+f0-f5, U+f7-fb, U+fd-fe, U+106-109, U+128-129, U+143-146, U+168-169, U+16e-16f,
+    U+176-177, U+1d7-1d8, U+1db-1dc, U+1f8-1fd, U+1ff, U+228-229, U+300-303, U+30a, U+327, U+385,
+    U+1e08-1e09, U+1e2e-1e2f, U+1e4c-1e4f, U+1e78-1e79, U+1e99, U+1ea4-1ea7, U+1eaa-1eab, U+1ebc-1ec1,
+    U+1ec4-1ec5, U+1ed0-1ed3, U+1ed6-1ed7, U+1ef2-1ef3, U+1ef8-1ef9, U+1fed, U+2022, U+202f, U+2039-203a,
+    U+2044, U+2150-2152, U+2155-215a, U+215c-215e;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 700 800;
+  font-display: swap;
+  src: url("../assets/fonts/bricolage-grotesque-core.woff2") format("woff2");
+  unicode-range:
+    U+20-7e, U+a0, U+ab, U+b0, U+b7, U+bb-be, U+c4, U+cb, U+cf, U+d6-d8, U+dc, U+df, U+e4, U+eb, U+ef,
+    U+f6, U+fc, U+ff, U+178, U+308, U+1e26-1e27, U+1e84-1e85, U+1e8c-1e8d, U+1e97, U+2013-2014,
+    U+2018-201a, U+201c-201e, U+2026, U+20ac, U+2153-2154, U+215b, U+2212;
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../assets/fonts/figtree-ext.woff2") format("woff2");
+  unicode-range:
+    U+a1-aa, U+ac-af, U+b1-b6, U+b8-ba, U+bf-c3, U+c5-ca, U+cc-ce, U+d0-d5, U+d9-db, U+dd-de, U+e0-e3,
+    U+e5-ea, U+ec-ee, U+f0-f5, U+f7-fb, U+fd-fe, U+106-109, U+128-129, U+143-146, U+168-169, U+16e-16f,
+    U+176-177, U+1d7-1d8, U+1db-1dc, U+1f8-1fd, U+1ff, U+228-229, U+300-303, U+30a, U+327, U+385,
+    U+1e08-1e09, U+1e2e-1e2f, U+1e4c-1e4f, U+1e78-1e79, U+1e99, U+1ea4-1ea7, U+1eaa-1eab, U+1ebc-1ec1,
+    U+1ec4-1ec5, U+1ed0-1ed3, U+1ed6-1ed7, U+1ef2-1ef3, U+1ef8-1ef9, U+1fed, U+2022, U+202f, U+2039-203a,
+    U+2044, U+2150-2152, U+2155-215a, U+215c-215e;
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../assets/fonts/figtree-core.woff2") format("woff2");
+  unicode-range:
+    U+20-7e, U+a0, U+ab, U+b0, U+b7, U+bb-be, U+c4, U+cb, U+cf, U+d6-d8, U+dc, U+df, U+e4, U+eb, U+ef,
+    U+f6, U+fc, U+ff, U+178, U+308, U+1e26-1e27, U+1e84-1e85, U+1e8c-1e8d, U+1e97, U+2013-2014,
+    U+2018-201a, U+201c-201e, U+2026, U+20ac, U+2153-2154, U+215b, U+2212;
+}

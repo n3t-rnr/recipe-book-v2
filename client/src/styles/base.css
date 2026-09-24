@@ -1,4 +1,5 @@
-/* Minimal reset and page defaults. Colors, fonts and sizes come only from tokens.css (NF-12). */
+/* Minimal reset, page defaults and a few shared utilities. Colors, fonts and sizes come only from
+ * tokens.css (NF-12); values below are copied from the approved artboards (NF-16). */
 
 *,
 *::before,
@@ -9,6 +10,11 @@
 /* Native controls and scrollbars follow the active scheme, including the manual override (NF-14). */
 :root {
   color-scheme: light dark;
+  /* Safe areas (viewport-fit=cover): iPhone home indicator and notch in the iOS shortcut (F-37). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 :root[data-theme="light"] {
@@ -24,6 +30,18 @@ html {
   font-size: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* NF-07, NF-11: the browser scrolls a focused element above fixed bottom bars: the floating
+     navigation (72 px, 12 px above the edge) or the editor's save bar (SaveBar sets --bottom-bar). */
+  scroll-padding-bottom: var(--bottom-bar, 0px);
+}
+
+html:has(.bottom-nav) {
+  --bottom-bar: calc(96px + var(--safe-bottom));
+}
+
+/* Sheets and dialogs lock the page behind them. */
+html.scroll-locked {
+  overflow: hidden;
 }
 
 body {
@@ -34,7 +52,7 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-body);
   font-weight: var(--text-body-weight);
-  line-height: 1.5;
+  line-height: var(--leading-body);
 }
 
 h1,
@@ -68,13 +86,108 @@ button {
   cursor: pointer;
 }
 
+/* No double-tap zoom delay on taps (NF-07: no feature relies on double tap). */
+a,
+button,
+input,
+label,
+select,
+textarea {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 a {
   color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
 }
 
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* Inline icon sprite in index.html: holds the <symbol>s only, takes no space. */
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Text only for screen readers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Heading styles of the generator: h1() and h2(). Screens change only font-size (36/40/34/30, 26/24/22). */
+.title-screen {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-screen);
+  font-weight: var(--text-screen-weight);
+  line-height: 1.05;
+  letter-spacing: -0.8px;
+}
+
+.title-section {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+  font-weight: var(--text-section-weight);
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+}
+
+/* Icon states that need two colors (Icon.svelte draws with currentColor). NF-13: a filled star has a
+ * text-colored outline, an empty star a thinner --color-star-empty outline; the heart is filled when on. */
+.icon-star-on {
+  fill: var(--color-highlight);
+  stroke: var(--color-star-stroke);
+}
+
+.icon-star-off {
+  fill: none;
+  stroke: var(--color-star-empty);
+}
+
+.icon-heart {
+  fill: none;
+  stroke: var(--color-heart);
+}
+
+.icon-heart.on {
+  fill: var(--color-heart);
+}
+
+/* Placeholder colors (F-16): --placeholder-(id mod 4 + 1), used by Plate and PlaceholderImage. */
+.ph-1 {
+  --ph: var(--placeholder-1);
+}
+
+.ph-2 {
+  --ph: var(--placeholder-2);
+}
+
+.ph-3 {
+  --ph: var(--placeholder-3);
+}
+
+.ph-4 {
+  --ph: var(--placeholder-4);
 }
 
 /* NF-11: with reduced motion no animation or transition may take longer than 100 ms. */

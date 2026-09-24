@@ -1,262 +1,185 @@
 <script lang="ts">
-  // Technical placeholder page of M0 (NF-16): server status and "connect another device".
-  // The real UI starts in M2; its texts will then move to i18n/de.ts (NF-10).
-  import { ApiError, getJson } from './api.ts';
+  // App root: shell, route outlet, connection banner, toast host (Kap. 6.2). The NF-01 initial budget
+  // covers shell and list, so these (and the favorites view, a list with a fixed filter) are in the
+  // entry chunk; profile choice, detail, editor, tags and "Mehr" load as separate chunks
+  // (lib/lazy-routes.ts). A route chunk that failed while the server was away loads again once it
+  // answers: by reloading the page, the only way past the browser's failed module (lib/chunk-retry.ts).
+  import { type Component, onMount, untrack } from 'svelte';
+  import AppShell from './components/AppShell.svelte';
+  import Banner from './components/Banner.svelte';
+  import EmptyState from './components/EmptyState.svelte';
+  import Toast from './components/Toast.svelte';
+  import { de } from './i18n/de.ts';
+  import { ping } from './lib/api.ts';
+  import { ChunkRetry, mayReloadForChunk } from './lib/chunk-retry.ts';
+  import { router } from './lib/router.svelte.ts';
+  import {
+    lazy,
+    loadConnect,
+    loadMore,
+    loadRecipeDetail,
+    loadRecipeEdit,
+    loadStatus,
+    loadTags,
+    loadTrash,
+  } from './lib/lazy-routes.ts';
+  import { idParam, routeMeta } from './lib/routes.ts';
+  import Favorites from './routes/Favorites.svelte';
+  import NotFound from './routes/NotFound.svelte';
+  import RecipeList from './routes/RecipeList.svelte';
+  import { connection } from './state/connection.svelte.ts';
+  import { profile } from './state/profile.svelte.ts';
 
-  interface Health {
-    status: 'ok' | 'degraded' | 'read-only';
-    version: string;
-    uptimeSec: number;
-    db: 'ok' | 'corrupt';
-    images: 'ok' | 'unavailable';
-    counts: { recipes: number; trash: number; images: number; profiles: number; tags: number } | null;
+  const route = $derived(router.route);
+  const meta = $derived(routeMeta(route.name));
+  const recipeId = $derived(idParam(route));
+  const selectedId = $derived(route.name === 'recipe' ? recipeId : null);
+  /** Which list sits next to the detail at ≥ 1024 px. */
+  const listKind = $derived(route.name === 'favorites' ? 'favorites' : route.name === 'recipes' ? 'recipes' : router.listContext);
+
+  let retryingConnection = $state(false);
+  const loadProfilePick = lazy(() => import('./routes/ProfilePick.svelte'));
+  // Keyed by route name: in two panes the failed detail stays on screen while the recipe id changes.
+  const chunks = new ChunkRetry(() => untrack(() => router.route.name));
+
+  async function retryConnection(): Promise<void> {
+    retryingConnection = true;
+    await ping();
+    retryingConnection = false;
   }
 
-  interface ServerInfo {
-    hostname: string;
-    urls: Array<{ url: string; kind: 'public' | 'ip' | 'mdns' }>;
-    qrUrl: string;
-    qrSvg: string;
+  /** "Erneut versuchen" on a failed route: once the server answers, a reload loads the chunk (NF-09). */
+  async function retryChunk(): Promise<void> {
+    if (await ping()) location.reload();
   }
 
-  type View =
-    | { state: 'loading' }
-    | { state: 'error'; detail: string }
-    | { state: 'ready'; health: Health; info: ServerInfo };
-
-  const STATUS_TEXT: Record<Health['status'], string> = {
-    ok: 'Alles in Ordnung',
-    degraded: 'Eingeschränkt',
-    'read-only': 'Nur Lesen',
-  };
-  const KIND_TEXT: Record<ServerInfo['urls'][number]['kind'], string> = {
-    public: 'Feste Adresse',
-    ip: 'IP-Adresse',
-    mdns: 'Gerätename',
-  };
-
-  let view = $state<View>({ state: 'loading' });
-
-  function formatUptime(sec: number): string {
-    const min = Math.floor(sec / 60);
-    if (min < 1) return 'unter 1 Min.';
-    const h = Math.floor(min / 60);
-    const d = Math.floor(h / 24);
-    if (d > 0) return `${d} ${d === 1 ? 'Tag' : 'Tage'} ${h % 24} Std.`;
-    return h > 0 ? `${h} Std. ${min % 60} Min.` : `${min} Min.`;
-  }
-
-  function errorDetail(err: unknown): string {
-    if (err instanceof ApiError && err.kind === 'timeout') return 'Der Server hat 10 Sekunden lang nicht geantwortet.';
-    if (err instanceof ApiError && err.kind === 'http') return `Der Server meldet einen Fehler (${err.status}).`;
-    return 'Prüfe, ob der PC eingeschaltet ist und du im selben WLAN bist.';
-  }
-
-  async function load(): Promise<void> {
-    view = { state: 'loading' };
-    try {
-      const [health, info] = await Promise.all([
-        getJson<Health>('/health'),
-        getJson<ServerInfo>('/server-info'),
-      ]);
-      view = { state: 'ready', health, info };
-    } catch (err) {
-      view = { state: 'error', detail: errorDetail(err) };
-    }
-  }
-
-  void load();
+  onMount(() => {
+    void profile.load();
+    const online = (): void => void ping();
+    window.addEventListener('online', online);
+    const off = connection.onReconnect(() => {
+      if (chunks.failed && mayReloadForChunk()) location.reload();
+    });
+    return () => {
+      off();
+      window.removeEventListener('online', online);
+    };
+  });
 </script>
 
-<main class="page">
-  <header class="intro">
-    <h1>Rezepte-App</h1>
-    <p class="muted">Technische Vorschau – die eigentliche Oberfläche folgt mit Meilenstein M2.</p>
-  </header>
+{#snippet offlineBanner()}
+  <Banner
+    message={de.connection.offline}
+    actionLabel={de.common.retry}
+    onaction={retryConnection}
+    busy={retryingConnection}
+  />
+{/snippet}
 
-  {#if view.state === 'loading'}
-    <p class="muted" role="status">Lade …</p>
-  {:else if view.state === 'error'}
-    <div class="banner" role="alert">
-      <p class="banner-title">Server nicht erreichbar – läuft der Rezepte-PC?</p>
-      <p>{view.detail}</p>
-      <button type="button" class="retry" onclick={load}>Erneut versuchen</button>
-    </div>
+{#snippet listColumn()}
+  {#if listKind === 'favorites'}
+    <Favorites {selectedId} />
   {:else}
-    {@const health = view.health}
-    {@const info = view.info}
-    <section class="card" aria-labelledby="server-heading">
-      <h2 id="server-heading">Server</h2>
-      <dl class="facts">
-        <dt>Status</dt>
-        <dd>{STATUS_TEXT[health.status] ?? health.status}</dd>
-        <dt>Version</dt>
-        <dd>{health.version}</dd>
-        <dt>Läuft seit</dt>
-        <dd>{formatUptime(health.uptimeSec)}</dd>
-        <dt>Datenbank</dt>
-        <dd>{health.db === 'ok' ? 'In Ordnung' : 'Beschädigt – nur Lesen möglich'}</dd>
-        <dt>Bildverarbeitung</dt>
-        <dd>{health.images === 'ok' ? 'Bereit' : 'Nicht verfügbar'}</dd>
-        {#if health.counts}
-          <dt>Rezepte</dt>
-          <dd>{health.counts.recipes}</dd>
-          <dt>Im Papierkorb</dt>
-          <dd>{health.counts.trash}</dd>
-          <dt>Bilder</dt>
-          <dd>{health.counts.images}</dd>
-          <dt>Profile</dt>
-          <dd>{health.counts.profiles}</dd>
-          <dt>Tags</dt>
-          <dd>{health.counts.tags}</dd>
-        {:else}
-          <dt>Zähler</dt>
-          <dd>Nicht lesbar (Datenbank beschädigt)</dd>
-        {/if}
-      </dl>
-    </section>
-
-    <section class="card" aria-labelledby="connect-heading">
-      <h2 id="connect-heading">Anderes Gerät verbinden</h2>
-      <p>Öffne eine dieser Adressen im Browser deines Handys oder scanne den QR-Code.</p>
-      <ul class="urls">
-        {#each info.urls as entry (entry.url)}
-          <li>
-            <span class="muted">{KIND_TEXT[entry.kind] ?? entry.kind}</span>
-            <a href={entry.url}>{entry.url}</a>
-          </li>
-        {/each}
-      </ul>
-      <!-- The SVG comes from our own server (qrcode-generator), never from user input. -->
-      <figure class="qr-figure">
-        <div class="qr">{@html info.qrSvg}</div>
-        <figcaption class="muted">QR-Code für {info.qrUrl}</figcaption>
-      </figure>
-    </section>
+    <RecipeList {selectedId} />
   {/if}
-</main>
+{/snippet}
+
+{#snippet detailColumn()}
+  {#if route.name === 'recipe' && recipeId !== null}
+    {@render detailRoute(recipeId)}
+  {:else}
+    <div class="detail-empty">
+      <EmptyState title={de.detailPane.title} text={de.detailPane.text} />
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet routeError()}
+  <div class="route-error">
+    <EmptyState
+      title={de.connection.routeFailed}
+      illustration={false}
+      actionLabel={de.common.retry}
+      actionIcon="refresh"
+      onaction={retryChunk}
+    />
+  </div>
+{/snippet}
+
+{#snippet lazyRoute(load: () => Promise<{ default: Component }>)}
+  {#await chunks.track(load()) then mod}
+    <mod.default />
+  {:catch}
+    {@render routeError()}
+  {/await}
+{/snippet}
+
+{#snippet detailRoute(id: number)}
+  {#await chunks.track(loadRecipeDetail()) then mod}
+    {#key id}
+      <mod.default {id} />
+    {/key}
+  {:catch}
+    {@render routeError()}
+  {/await}
+{/snippet}
+
+{#snippet editorRoute(id: number | null)}
+  {#await chunks.track(loadRecipeEdit()) then mod}
+    <mod.default {id} />
+  {:catch}
+    {@render routeError()}
+  {/await}
+{/snippet}
+
+{#snippet toastHost()}
+  <Toast />
+{/snippet}
+
+<AppShell
+  {meta}
+  banner={connection.online ? undefined : offlineBanner}
+  list={meta.twoPane ? listColumn : undefined}
+  detail={meta.twoPane ? detailColumn : undefined}
+  overlays={toastHost}
+>
+  {#key route.path}
+    {#if route.name === 'profile'}
+      {@render lazyRoute(loadProfilePick)}
+    {:else if route.name === 'recipes'}
+      <RecipeList />
+    {:else if route.name === 'favorites'}
+      <Favorites />
+    {:else if route.name === 'recipe' && recipeId !== null}
+      {@render detailRoute(recipeId)}
+    {:else if route.name === 'recipeNew' || route.name === 'recipeEdit'}
+      {@render editorRoute(route.name === 'recipeEdit' ? recipeId : null)}
+    {:else if route.name === 'tags'}
+      {@render lazyRoute(loadTags)}
+    {:else if route.name === 'more'}
+      {@render lazyRoute(loadMore)}
+    {:else if route.name === 'connect'}
+      {@render lazyRoute(loadConnect)}
+    {:else if route.name === 'trash'}
+      {@render lazyRoute(loadTrash)}
+    {:else if route.name === 'status'}
+      {@render lazyRoute(loadStatus)}
+    {:else}
+      <NotFound />
+    {/if}
+  {/key}
+</AppShell>
 
 <style>
-  .page {
+  .detail-empty {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    max-width: 40rem;
-    margin: 0 auto;
-    padding: var(--space-7) var(--page-margin);
-  }
-
-  h1 {
-    font-family: var(--font-display);
-    font-size: var(--text-screen);
-    font-weight: var(--text-screen-weight);
-    line-height: var(--leading-heading);
-  }
-
-  h2 {
-    font-family: var(--font-display);
-    font-size: var(--text-section);
-    font-weight: var(--text-section-weight);
-    line-height: var(--leading-heading);
-  }
-
-  .intro {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .muted {
-    color: var(--color-text-muted);
-  }
-
-  .card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-5);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: var(--color-surface);
-  }
-
-  .facts {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: var(--space-2) var(--space-4);
-  }
-
-  .facts dt {
-    font-weight: var(--text-label-weight);
-  }
-
-  .urls {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: 0;
-    list-style: none;
-  }
-
-  .urls li {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .urls a {
-    display: inline-flex;
     align-items: center;
-    min-height: var(--tap-min);
-    font-weight: 600;
-    overflow-wrap: anywhere;
+    justify-content: center;
+    min-height: 100%;
+    padding: 24px;
   }
 
-  .qr-figure {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  /* The QR SVG brings its own light quiet zone, so it scans in both color schemes. */
-  .qr {
-    width: 220px;
-    max-width: 100%;
-  }
-
-  .qr :global(svg) {
-    width: 100%;
-    height: auto;
-  }
-
-  .banner {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: 14px var(--space-4);
-    border-radius: var(--radius-tile);
-    background: var(--color-highlight);
-    color: var(--color-ink);
-  }
-
-  /* The page focus color (Linen in dark mode) would vanish on Vanilla. */
-  .banner :focus-visible {
-    outline-color: var(--color-ink);
-  }
-
-  .banner-title {
-    font-weight: 700;
-    line-height: 1.4;
-  }
-
-  .retry {
-    align-self: flex-start;
-    min-height: var(--tap-min);
-    padding: 0 var(--space-4);
-    border: 1.5px solid var(--color-ink);
-    border-radius: var(--radius-chip);
-    background: transparent;
-    color: var(--color-ink);
-    font-size: var(--text-label);
-    font-weight: var(--text-label-weight);
+  .route-error {
+    padding: calc(48px + var(--safe-top)) 20px 24px;
   }
 </style>

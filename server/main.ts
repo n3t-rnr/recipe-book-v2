@@ -8,9 +8,10 @@ import { ensureFtsConsistent, reindexAll } from './db/fts.ts';
 import { MIGRATIONS_DIR, runMigrations } from './db/migrate.ts';
 import { createFileLogger, type Logger } from './log.ts';
 import { dataPaths, ensureDataDirs } from './paths.ts';
+import { startMaintenance } from './services/maintenance.ts';
 import { getNetInfo, qrAscii } from './services/net-info.ts';
 import { probeIPv4Port } from './services/port.ts';
-import type { RuntimeState } from './types.ts';
+import type { AppDeps, RuntimeState } from './types.ts';
 import { APP_VERSION } from './version.ts';
 
 /** Start errors end the process with exit code 1 and a German message (NF-24). */
@@ -100,7 +101,7 @@ async function main(): Promise<void> {
     images: await loadImages(log),
   };
 
-  const app = createApp({
+  const deps: AppDeps = {
     config,
     db,
     paths,
@@ -109,14 +110,20 @@ async function main(): Promise<void> {
     clientDir: config.clientDir,
     netInfo: () => getNetInfo(config),
     now: () => new Date(),
-  });
+  };
+  const app = createApp(deps);
 
   // @hono/node-server returns a union incl. HTTP/2 servers; without TLS options it is always http.Server.
-  const holder: { server: Server | null } = { server: null };
+  const holder: { server: Server | null; stopMaintenance: (() => void) | null } = {
+    server: null,
+    stopMaintenance: null,
+  };
   const listen = (hostname: string): void => {
     const server = serve({ fetch: app.fetch, port: config.port, hostname }, (address: AddressInfo) => {
       log.info('listening', { address: address.address, port: address.port });
       printBanner(config, log);
+      // Last start step (Kap. 5.4): the hourly maintenance, incl. the 30-day trash purge (F-08).
+      holder.stopMaintenance ??= startMaintenance(deps);
     }) as Server;
     holder.server = server;
     server.on('error', (err: NodeJS.ErrnoException) => {
@@ -144,6 +151,9 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     log.info(`shutdown: ${signal}`);
+    // No maintenance run may start between here and closing the database.
+    holder.stopMaintenance?.();
+    holder.stopMaintenance = null;
     const finish = () => {
       closeDatabase(db, log);
       process.exit(0);

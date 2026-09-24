@@ -1,3 +1,4 @@
+import type { PersonRef } from '../shared/types.ts';
 import type { Config } from './config.ts';
 import type { DB } from './db/types.ts';
 import type { Logger } from './log.ts';
@@ -43,5 +44,7 @@ export interface AppDeps {
 export interface AppEnv {
   Variables: {
     requestId: string;
+    /** Acting profile from X-Profile-Id (F-05); null when the header is absent. Set by profileContext on /api/*. */
+    profile: PersonRef | null;
   };
 }

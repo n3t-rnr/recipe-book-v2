@@ -4,13 +4,13 @@ Browser-based recipe app for the home LAN. One Node process on a Windows PC serv
 
 ## Current phase
 
-M0 (foundation) is done; next is M2 (profiles and recipe core). The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). The M0 placeholder page in `client/src/App.svelte` is replaced in M2; its texts then move to `client/src/i18n/de.ts`.
+M0 (foundation) and M2 (profiles and recipe core) are done; next is M3 (images). The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). UI texts live in `client/src/i18n/` (`de.ts` for the entry chunk, `de-screens*.ts` and `de-editor.ts` for lazy chunks). The initial JS budget is almost used up (34.9 of 35 KB): new code belongs in lazy chunks.
 
 Developer setup and commands: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
 
 ## Language
 
-- UI texts: German, informal "du" form, only in `client/src/i18n/de.ts` (NF-10). Decimal comma, dates as `12.03.2026`.
+- UI texts: German, informal "du" form, only in `client/src/i18n/` (NF-10). Decimal comma, dates as `12.03.2026`.
 - Code, identifiers, file names, commit messages: English.
 - Docs for the user (`docs/*.md`): German.
 

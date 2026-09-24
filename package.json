@@ -19,6 +19,7 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "size": "node scripts/size-check.ts",
+    "seed": "node --disable-warning=ExperimentalWarning tests/seed.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "dependencies": {

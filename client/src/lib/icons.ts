@@ -1,0 +1,52 @@
+/**
+ * Stroke icon set of the approved design (docs/design/canvas/generate-mockups.mjs, ICONS), 24×24 grid,
+ * drawn with currentColor (NF-15); no icon package. This file is the source of the inline SVG sprite in
+ * client/index.html (<symbol id="i-<name>">; filled glyphs wrapped in <g fill="currentColor"
+ * stroke="none">), which Icon.svelte references with <use>. The sprite keeps the paths out of the JS
+ * bundle (NF-01); tests/unit/icons.test.ts fails when the two differ. After a change here, update the
+ * sprite with the same markup. Additions keep the grid and stroke style (round caps and joins).
+ */
+export const ICONS = {
+  search: '<circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path>',
+  filter:
+    '<path d="M4 7h9"></path><path d="M17 7h3"></path><circle cx="15" cy="7" r="2"></circle><path d="M4 17h3"></path><path d="M11 17h9"></path><circle cx="9" cy="17" r="2"></circle>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"></path><path d="M19.5 4.5v4.5H15"></path>',
+  heart:
+    '<path d="M12 20.2s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.1a4.3 4.3 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z"></path>',
+  plus: '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
+  star: '<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>',
+  clock: '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path>',
+  back: '<path d="M15 5l-7 7 7 7"></path>',
+  book: '<path d="M4 5.5c2.5-1 5.5-1 8 .5v13c-2.5-1.5-5.5-1.5-8-.5z"></path><path d="M20 5.5c-2.5-1-5.5-1-8 .5v13c2.5-1.5 5.5-1.5 8-.5z"></path>',
+  tag: '<path d="M3.5 11.8V4.8a1.3 1.3 0 0 1 1.3-1.3h7l8.4 8.4a1.3 1.3 0 0 1 0 1.8l-6.8 6.8a1.3 1.3 0 0 1-1.8 0z"></path><circle cx="8.3" cy="8.3" r="1.4"></circle>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"></path>',
+  pencil: '<path d="M4.5 19.5h4l10-10-4-4-10 10z"></path><path d="M13 7l4 4"></path>',
+  image:
+    '<rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.7"></circle><path d="M20.5 16l-5-5-8.5 8"></path>',
+  camera:
+    '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.5-2h5.4l1.5 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"></path><circle cx="12" cy="13" r="3.5"></circle>',
+  chevDown: '<path d="M6 9l6 6 6-6"></path>',
+  chevUp: '<path d="M6 15l6-6 6 6"></path>',
+  chevRight: '<path d="M9 6l6 6-6 6"></path>',
+  close: '<path d="M6.5 6.5l11 11"></path><path d="M17.5 6.5l-11 11"></path>',
+  trash:
+    '<path d="M4.5 7h15"></path><path d="M9.5 7V4.5h5V7"></path><path d="M6.5 7l1 12.5h9l1-12.5"></path>',
+  alert: '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.8v5"></path><path d="M12 16.2v.3"></path>',
+  info: '<circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5"></path><path d="M12 7.8v.3"></path>',
+  users:
+    '<circle cx="9" cy="8" r="3.2"></circle><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"></path><path d="M15.5 5a3.2 3.2 0 0 1 0 6.2"></path><path d="M17.5 14.2a5.5 5.5 0 0 1 3 5.3"></path>',
+  // Additions in the same style: undo (toast, F-35) and restore (trash, F-08) mirror the refresh arrow.
+  undo: '<path d="M9 14.5L4.5 10 9 5.5"></path><path d="M4.5 10h10a5 5 0 0 1 0 10H11"></path>',
+  restore: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"></path><path d="M4.5 4.5v4.5H9"></path>',
+  // Filled glyphs (drawn with fill, not stroke).
+  dotsH:
+    '<circle cx="5.5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="18.5" cy="12" r="1.7"></circle>',
+  dotsV:
+    '<circle cx="12" cy="5.5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="12" cy="18.5" r="1.7"></circle>',
+  grip: '<circle cx="9" cy="6" r="1.5"></circle><circle cx="15" cy="6" r="1.5"></circle><circle cx="9" cy="12" r="1.5"></circle><circle cx="15" cy="12" r="1.5"></circle><circle cx="9" cy="18" r="1.5"></circle><circle cx="15" cy="18" r="1.5"></circle>',
+} as const;
+
+export type IconName = keyof typeof ICONS;
+
+/** Icons drawn with fill instead of stroke (the generator's FILLED set). */
+export const FILLED_ICONS: ReadonlySet<IconName> = new Set<IconName>(['dotsH', 'dotsV', 'grip']);
