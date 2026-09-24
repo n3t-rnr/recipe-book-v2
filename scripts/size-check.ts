@@ -8,7 +8,8 @@ const KB = 1024;
 
 export const BUDGETS = {
   initialJs: 35 * KB,
-  totalJs: 70 * KB,
+  /** Every lazily loaded JS chunk (editor, secondary pages); decided 2026-09-23, ADR 0002. */
+  lazyChunkJs: 30 * KB,
   totalCss: 15 * KB,
   fontsTotal: 100 * KB,
   fontsPreloaded: 60 * KB,
@@ -25,6 +26,8 @@ export interface BudgetRow {
 export interface BudgetResult {
   rows: BudgetRow[];
   violations: string[];
+  /** Sum of all JS chunks (gzip) — reported for information, no longer a budget (ADR 0002). */
+  totalJs: number;
 }
 
 function gzipBytes(file: string): number {
@@ -94,8 +97,21 @@ export function checkBudgets(distDir: string): BudgetResult {
     });
 
   const assetFiles = listFiles(path.join(distDir, 'assets'));
-  const initialJs = resolveAll(refs.scripts).reduce((sum, file) => sum + gzipBytes(file), 0);
-  const totalJs = assetFiles.filter((f) => f.endsWith('.js')).reduce((sum, f) => sum + gzipBytes(f), 0);
+  const initialFiles = resolveAll(refs.scripts);
+  const initialJs = initialFiles.reduce((sum, file) => sum + gzipBytes(file), 0);
+  const jsFiles = assetFiles.filter((f) => f.endsWith('.js'));
+  const totalJs = jsFiles.reduce((sum, f) => sum + gzipBytes(f), 0);
+  const initialSet = new Set(initialFiles.map((f) => path.resolve(f)));
+  const lazyChunks = jsFiles
+    .filter((f) => !initialSet.has(path.resolve(f)))
+    .map((f) => ({ name: path.basename(f), bytes: gzipBytes(f) }))
+    .sort((a, b) => b.bytes - a.bytes);
+  const largestLazy = lazyChunks[0] ?? { name: '–', bytes: 0 };
+  for (const chunk of lazyChunks.slice(1)) {
+    if (chunk.bytes > BUDGETS.lazyChunkJs) {
+      violations.push(`Nachgeladener Chunk ${chunk.name}: ${kb(chunk.bytes)} > ${kb(BUDGETS.lazyChunkJs)}`);
+    }
+  }
   const totalCss = assetFiles.filter((f) => f.endsWith('.css')).reduce((sum, f) => sum + gzipBytes(f), 0);
   // WOFF2 is already compressed, so fonts count with their raw size.
   const fontsTotal = listFiles(distDir)
@@ -119,7 +135,7 @@ export function checkBudgets(distDir: string): BudgetResult {
 
   const rows = [
     row('JS initial (gzip)', initialJs, BUDGETS.initialJs),
-    row('JS gesamt (gzip)', totalJs, BUDGETS.totalJs),
+    row(`JS größter nachgeladener Chunk (${largestLazy.name})`, largestLazy.bytes, BUDGETS.lazyChunkJs),
     row('CSS gesamt (gzip)', totalCss, BUDGETS.totalCss),
     row('Schriften gesamt (WOFF2)', fontsTotal, BUDGETS.fontsTotal),
     row(
@@ -129,7 +145,7 @@ export function checkBudgets(distDir: string): BudgetResult {
       preloadCountOk,
     ),
   ];
-  return { rows, violations };
+  return { rows, violations, totalJs };
 }
 
 function printTable(rows: BudgetRow[]): void {
@@ -150,9 +166,10 @@ function main(): void {
     process.exitCode = 1;
     return;
   }
-  const { rows, violations } = checkBudgets(distDir);
+  const { rows, violations, totalJs } = checkBudgets(distDir);
   console.log(`Size-Check für ${distDir}`);
   printTable(rows);
+  console.log(`\nJS gesamt (gzip, nur zur Information): ${kb(totalJs)}`);
   if (violations.length > 0) {
     console.error('\nBudget überschritten (NF-01):');
     for (const v of violations) console.error(`- ${v}`);

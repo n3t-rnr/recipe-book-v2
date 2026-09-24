@@ -16,6 +16,8 @@ export default defineConfig({
     target: 'es2022',
     // Keine data:-URIs für Assets: Schriften und Bilder bleiben eigene, gehashte Dateien (NF-01, NF-15).
     assetsInlineLimit: 0,
+    // Every NF-17 browser supports <link rel="modulepreload">; the polyfill would only cost entry bytes (NF-01).
+    modulePreload: { polyfill: false },
   },
   server: {
     port: 5173,

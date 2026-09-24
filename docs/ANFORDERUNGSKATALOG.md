@@ -453,7 +453,7 @@ Akzeptanzkriterien:
 
 | ID | Titel | Beschreibung | Priorität |
 |---|---|---|---|
-| NF-01 | Transfer- und Bundle-Budget | Initial-Route (App-Shell, Profilwahl, Liste): JS ≤ 35 KB gzip. JS gesamt ≤ 70 KB gzip, CSS ≤ 15 KB gzip. Editor, Tag-Verwaltung, Mehr/Verbinden/Status und Kochmodus werden lazy geladen. Webfonts insgesamt ≤ 100 KB WOFF2, davon für die erste Ansicht höchstens 2 Dateien mit zusammen ≤ 60 KB. Erster Besuch der Liste ohne Bilder ≤ 160 KB Transfer. | Muss |
+| NF-01 | Transfer- und Bundle-Budget | Initial-Route (App-Shell und Liste): JS ≤ 35 KB gzip; die Profilwahl wird beim ersten Start nachgeladen. Jeder nachgeladene JS-Chunk ≤ 30 KB gzip; die Summe aller Chunks wird nur berichtet (Entscheidung vom 23.09.2026, ADR 0002, ersetzt „JS gesamt ≤ 70 KB“). CSS ≤ 15 KB gzip. Editor, Tag-Verwaltung, Mehr/Verbinden/Status und Kochmodus werden lazy geladen. Webfonts insgesamt ≤ 100 KB WOFF2, davon für die erste Ansicht höchstens 2 Dateien mit zusammen ≤ 60 KB. Erster Besuch der Liste ohne Bilder ≤ 160 KB Transfer. | Muss |
 | NF-02 | Abhängigkeitsbudget | Laufzeit-Abhängigkeiten (`dependencies`): genau `hono`, `@hono/node-server`, `better-sqlite3`, `sharp`, `zod`, `qrcode-generator`. `svelte` steht in `devDependencies`, weil es vollständig gebündelt wird. Im Client-Bundle landen nur `svelte` und `zod/mini` (nur im Editor-Chunk). Kein UI-Framework und kein Router-, State-, Datums-, Icon- oder CSS-Paket zur Laufzeit. | Muss |
 | NF-03 | Lade- und Reaktionszeit am Handy | Schneller erster und warmer Aufruf auf einem Mittelklasse-Handy im WLAN. | Muss |
 | NF-04 | API-Antwortzeiten | Liste und Suche bleiben bei 1.000 Rezepten schnell, ohne N+1-Abfragen. | Muss |

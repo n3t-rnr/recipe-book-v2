@@ -45,20 +45,21 @@ describe('checkBudgets (NF-01)', () => {
       'assets/editor-d4.js': 'export const editor = true;\n',
       'assets/index-c3.css': 'body{margin:0}\n',
     });
-    const { rows, violations } = checkBudgets(dir);
+    const { rows, violations, totalJs } = checkBudgets(dir);
     expect(violations).toEqual([]);
     expect(rows.map((r) => r.label)).toEqual([
       'JS initial (gzip)',
-      'JS gesamt (gzip)',
+      'JS größter nachgeladener Chunk (editor-d4.js)',
       'CSS gesamt (gzip)',
       'Schriften gesamt (WOFF2)',
       'Schriften vorgeladen (WOFF2, 0 Dateien)',
     ]);
     expect(rows.every((r) => r.ok)).toBe(true);
-    const [initial, total] = rows;
+    const [initial, lazy] = rows;
     expect(initial?.bytes).toBeGreaterThan(0);
-    // The lazy editor chunk counts for the total, not for the initial route.
-    expect(total?.bytes).toBeGreaterThan(initial?.bytes ?? 0);
+    // The lazy editor chunk counts for the per-chunk budget and the informational total, not for the initial route.
+    expect(lazy?.limit).toBe(30 * 1024);
+    expect(totalJs).toBeGreaterThan(initial?.bytes ?? 0);
     expect(initial?.limit).toBe(35 * 1024);
   });
 
@@ -85,7 +86,7 @@ describe('checkBudgets (NF-01)', () => {
     expect(checkBudgets(dir).violations.some((v) => v.startsWith('JS initial'))).toBe(true);
   });
 
-  it('flags lazy chunks only against the total JS budget', () => {
+  it('flags every lazy chunk over 30 KB gzip, never against the initial budget (ADR 0002)', () => {
     const dir = fixture({
       'index.html': indexHtml('<script type="module" src="/assets/index-a.js"></script>'),
       'assets/index-a.js': 'export {};\n',
@@ -93,8 +94,20 @@ describe('checkBudgets (NF-01)', () => {
       'assets/tags-2.js': incompressible(40),
     });
     const { violations } = checkBudgets(dir);
-    expect(violations.some((v) => v.startsWith('JS gesamt'))).toBe(true);
+    expect(violations.some((v) => v.startsWith('JS größter nachgeladener Chunk'))).toBe(true);
+    expect(violations.some((v) => v.startsWith('Nachgeladener Chunk'))).toBe(true);
     expect(violations.some((v) => v.startsWith('JS initial'))).toBe(false);
+  });
+
+  it('allows many small lazy chunks even when their sum exceeds the old 70 KB total', () => {
+    const files: Record<string, string> = {
+      'index.html': indexHtml('<script type="module" src="/assets/index-a.js"></script>'),
+      'assets/index-a.js': 'export {};',
+    };
+    for (let i = 0; i < 4; i++) files[`assets/page-${i}.js`] = incompressible(20);
+    const { violations, totalJs } = checkBudgets(fixture(files));
+    expect(totalJs).toBeGreaterThan(70 * 1024);
+    expect(violations).toEqual([]);
   });
 
   it('flags CSS over 15 KB gzip', () => {

@@ -23,7 +23,7 @@ Project layout: chapter 5.5. Do not add a monorepo/workspace, an ORM, Tailwind, 
 ## Hard rules
 
 - **Dependencies (NF-02):** runtime `dependencies` are exactly `hono`, `@hono/node-server`, `better-sqlite3`, `sharp`, `zod`, `qrcode-generator`. Any addition needs an ADR in `docs/ADR/`. The client bundle contains only `svelte` and `zod/mini` (editor chunk only).
-- **Budgets (NF-01, NF-05):** initial JS ≤ 35 KB gzip, total JS ≤ 70 KB, CSS ≤ 15 KB, fonts ≤ 100 KB WOFF2; server RAM ≤ 80 MB idle. `scripts/size-check.ts` fails the build when a budget is exceeded.
+- **Budgets (NF-01, NF-05):** initial JS ≤ 35 KB gzip, every lazily loaded JS chunk ≤ 30 KB gzip (ADR 0002; the total is only reported), CSS ≤ 15 KB, fonts ≤ 100 KB WOFF2; server RAM ≤ 80 MB idle. `scripts/size-check.ts` fails the build when a budget is exceeded.
 - **Colors (NF-12, NF-13, chapter 6.7):** palette `#EFE6DD` Linen, `#231F20` Raisin Black, `#BB4430` Terracotta (`#D9634F` in dark mode), `#7EBDC2` Moonstone, `#F3DFA2` Vanilla. Colors only as CSS custom properties in `client/src/styles/tokens.css`; no color literals anywhere else. Moonstone and Vanilla only as surfaces with dark text, never as text color. Terracotta on Linen never as normal-size text (4.28:1). State is never conveyed by color alone.
 - **Touch (NF-07):** tap targets ≥ 44×44 px, kitchen actions (heart, stars, FAB, save) ≥ 48×48 px; no feature relies on hover, long press or double tap.
 - **Icons and fonts (NF-15):** one stroke-based inline SVG sprite with `currentColor`; no emoji or text glyphs as icons; max. 2 self-hosted WOFF2 font families, no CDN.
