@@ -109,6 +109,43 @@ export function readDraft<T>(
   return { savedAt, data };
 }
 
+/** Keeps one editor's stored draft in step with its form (F-09); see draftSync. */
+export interface DraftSync {
+  /** The form differs from its start: writes the draft unless this payload was the last one written. */
+  keep(data: unknown, now: Date): void;
+  /** The form is back at its start: removes the draft, if one may be stored. */
+  drop(): void;
+  /**
+   * A draft this sync did not write may be stored (a restored one, or one written for a form that was
+   * replaced since): the next keep() rewrites it, the next drop() removes it.
+   */
+  adopt(): void;
+}
+
+/**
+ * drop() touches the storage only when a draft may be there: one this sync wrote, or one it adopted.
+ * Adopting matters for a restored draft that holds no change any more, e.g. once its expired photo left
+ * the form (F-09 AK): without it, the draft would stay and be offered again on every visit.
+ */
+export function draftSync(storage: StorageLike | null, key: string): DraftSync {
+  /** JSON of the last payload written; '' when an adopted draft may be stored; null when none is. */
+  let last: string | null = null;
+  return {
+    keep(data, now) {
+      const json = JSON.stringify(data);
+      if (json !== last && writeDraft(storage, key, data, now)) last = json;
+    },
+    drop() {
+      if (last === null) return;
+      removeDraft(storage, key);
+      last = null;
+    },
+    adopt() {
+      last = '';
+    },
+  };
+}
+
 /** Removes expired drafts of other recipes (abandoned edits); returns the number removed. */
 export function pruneDrafts(
   storage: StorageLike | null,

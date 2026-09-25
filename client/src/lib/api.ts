@@ -3,7 +3,7 @@
  * 10 s timeout (NF-09), typed errors with German messages (NF-10) and connection tracking (F-33).
  */
 import { API_BASE, CLIENT_HEADER, PROFILE_HEADER } from '../../../shared/constants.ts';
-import { ERROR_CODES, type ErrorCode } from '../../../shared/error-codes.ts';
+import type { ErrorCode } from '../../../shared/error-codes.ts';
 import { type ClientErrorCode, ERROR_TEXTS } from '../i18n/de.ts';
 import { connection } from '../state/connection.svelte.ts';
 import { buildQuery, type QueryInput } from './routes.ts';
@@ -71,7 +71,13 @@ export function setProfileUnknownHandler(handler: (id: number) => void): void {
   profileUnknownHandler = handler;
 }
 
-const KNOWN_CODES: ReadonlySet<string> = new Set(ERROR_CODES);
+/**
+ * A code of Kap. 7.2. ERROR_TEXTS has a text for every server code plus the client-side ones, so it
+ * doubles as the list; importing ERROR_CODES would put the status table into the entry chunk (NF-01).
+ */
+function isServerCode(code: string): code is ErrorCode {
+  return Object.hasOwn(ERROR_TEXTS, code) && code !== 'NETWORK' && code !== 'TIMEOUT';
+}
 
 interface WireError {
   error?: { code?: unknown; message?: unknown; details?: unknown; requestId?: unknown };
@@ -81,7 +87,7 @@ function toApiError(res: Response, data: unknown): ApiError {
   const error = (data as WireError | undefined)?.error;
   const headerId = res.headers.get('X-Request-Id');
   if (error && typeof error.code === 'string') {
-    const code: ErrorCode = KNOWN_CODES.has(error.code) ? (error.code as ErrorCode) : 'INTERNAL';
+    const code: ErrorCode = isServerCode(error.code) ? error.code : 'INTERNAL';
     const message =
       typeof error.message === 'string' && error.message.trim() !== '' ? error.message : ERROR_TEXTS[code];
     const requestId = typeof error.requestId === 'string' ? error.requestId : headerId;

@@ -56,17 +56,43 @@
     });
   });
 
-  // Rotating a tablet switches between one and two panes; keep the reading position (NF-08).
-  let previousTwoPane = untrack(() => twoPane);
+  // Rotating a tablet switches between one and two panes; keep the reading position (NF-08). Only a width
+  // change counts: a navigation to a one-pane route starts at the top (router). The detail keeps its pixel
+  // offset. Rows (≥ 1024 px) and cards differ in height, so the list keeps a recipe at the same distance
+  // from its top edge instead: on /rezepte the first visible one; next to a detail the selected row, which
+  // portrait hides, so its distance waits for the way back. A recipe opened in portrait then takes that
+  // place, so the marked row is in view. offsetTop works because the list column is positioned (else the
+  // page); while turning, the columns have no height (CSS), so the browser cannot cut the list's position.
+  let wasWide = untrack(() => wide);
+  /** Link path of the first visible recipe on /rezepte ('' at the top of the list: stay at the top). */
+  let anchorPath: string | undefined;
+  /** Distance of the anchor recipe from the top edge (before any turn: upper part of the column). */
+  let anchorOffset = 300;
   $effect.pre(() => {
-    const next = twoPane;
+    const next = wide;
     untrack(() => {
-      if (next === previousTwoPane) return;
+      if (next === wasWide) return;
+      wasWide = next;
+      if (!meta.twoPane) return;
       const onDetail = router.route.name === 'recipe';
-      const from = previousTwoPane ? (onDetail ? detailEl : listEl)?.scrollTop : window.scrollY;
-      previousTwoPane = next;
-      if (from === undefined || from === 0) return;
-      router.restorePositions(next ? { [onDetail ? 'detail' : 'list']: from } : { window: from });
+      if (onDetail) router.restoreScroll(next ? { detail: scrollY } : { window: detailEl?.scrollTop ?? 0 });
+      // Pre effect: the old layout is still on screen, the list column or the page on /rezepte. A detail in
+      // portrait has no selected row, so the anchor stays.
+      const top = listEl?.scrollTop ?? scrollY;
+      const selected = 'main li:has([aria-current=page])';
+      const item = [...document.querySelectorAll<HTMLElement>(onDetail ? selected : 'main li')].find(
+        (li) => onDetail || li.offsetTop >= top,
+      );
+      if (item) {
+        anchorPath = top ? item.querySelector('a')?.pathname : '';
+        anchorOffset = item.offsetTop - top;
+      }
+      void tick().then(() => {
+        const row = document.querySelector<HTMLElement>(
+          onDetail ? selected : `main li:has([href="${anchorPath}"])`,
+        );
+        if (row) (next ? listEl : window)?.scrollTo(0, row.offsetTop - anchorOffset);
+      });
     });
   });
 </script>
@@ -199,6 +225,14 @@
     grid-template-columns: 380px minmax(0, 1fr);
   }
 
+  /* Turning to portrait: until the layout switches, the columns would be as tall as the portrait screen,
+     and the browser would cut the list's position near its end before the rotation effect reads it. */
+  @media (max-width: 1023.98px) {
+    .panes {
+      max-height: 0;
+    }
+  }
+
   /* Thin scrollbars keep the 380 px column close to the artboard where scrollbars take space (desktop). */
   .list-pane,
   .detail-pane {
@@ -206,6 +240,7 @@
   }
 
   .list-pane {
+    position: relative;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;

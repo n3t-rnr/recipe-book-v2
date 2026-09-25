@@ -1,9 +1,10 @@
-// Draft protection of the editor (F-09): save/restore with a fake storage, expiry, broken entries and
-// the zod-parsed payload of client/src/lib/editor.ts.
+// Draft protection of the editor (F-09): save/restore with a fake storage, expiry, broken entries, the
+// zod-parsed payload of client/src/lib/editor.ts and the check of a restored draft's photo (F-09 AK).
 import { describe, expect, it } from 'vitest';
 import {
   DRAFT_MAX_AGE_MS,
   draftKey,
+  draftSync,
   pruneDrafts,
   readDraft,
   removeDraft,
@@ -21,7 +22,9 @@ import {
   formKey,
   newForm,
   parseEditorDraft,
+  verifyDraftImage,
 } from '../../client/src/lib/editor.ts';
+import type { DetailImage } from '../../shared/types.ts';
 
 class FakeStorage implements StorageLike {
   readonly map = new Map<string, string>();
@@ -51,6 +54,16 @@ class FakeStorage implements StorageLike {
 
 const NOW = new Date('2026-09-23T12:00:00.000Z');
 
+function photo(id: number): DetailImage {
+  const key = String(id).padStart(16, '0');
+  return {
+    id,
+    urls: { s: `/media/${key}-s.webp`, m: `/media/${key}-m.webp`, l: `/media/${key}-l.webp` },
+    width: 2048,
+    height: 1536,
+  };
+}
+
 function sampleDraft(): EditorDraft {
   const form = newForm('Käsespätzle');
   form.tags = ['Vegetarisch'];
@@ -60,7 +73,7 @@ function sampleDraft(): EditorDraft {
     { ...emptyIngredient(), amount: '2–3', unit: '', name: 'Eier' },
   ];
   form.steps = [emptyStep('Teig schlagen.')];
-  form.imageId = 17;
+  form.image = photo(17);
   return { form, base: null, version: null, createKey: 'abcdef1234567890', conflict: null };
 }
 
@@ -79,7 +92,7 @@ describe('writeDraft / readDraft', () => {
     const restored = readDraft(storage, 'draft:new', parseEditorDraft, new Date(NOW.getTime() + 60_000));
     expect(restored?.savedAt).toBe(NOW.toISOString());
     expect(restored?.data.createKey).toBe('abcdef1234567890');
-    expect(restored?.data.form.imageId).toBe(17);
+    expect(restored?.data.form.image).toEqual(photo(17));
     expect(formKey(restored?.data.form ?? newForm())).toBe(formKey(draft.form));
     // Restored rows get fresh keys, so they never collide with rows created in this session.
     expect(restored?.data.form.items.map((i) => i.key)).not.toEqual(draft.form.items.map((i) => i.key));
@@ -144,6 +157,93 @@ describe('writeDraft / readDraft', () => {
   });
 });
 
+describe('draftSync: the stored draft follows the form (F-09)', () => {
+  it('writes a changed payload once and removes its own draft when the form is back at its start', () => {
+    const storage = new FakeStorage();
+    const writes: string[] = [];
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (key, value) => {
+      writes.push(key);
+      setItem(key, value);
+    };
+    const sync = draftSync(storage, 'draft:new');
+    const draft = sampleDraft();
+    sync.keep(draft, NOW);
+    sync.keep(draft, new Date(NOW.getTime() + 2000));
+    expect(writes).toEqual(['draft:new']);
+    draft.form.title = 'Käsespätzle mit Röstzwiebeln';
+    sync.keep(draft, NOW);
+    expect(writes).toHaveLength(2);
+    sync.drop();
+    expect(storage.getItem('draft:new')).toBeNull();
+  });
+
+  it('leaves the storage alone while it has neither written nor adopted a draft', () => {
+    const storage = new FakeStorage();
+    writeDraft(storage, 'draft:new', sampleDraft(), NOW);
+    draftSync(storage, 'draft:new').drop();
+    // Not this editor's draft yet (e.g. still offered in the dialog): it stays.
+    expect(storage.getItem('draft:new')).not.toBeNull();
+  });
+
+  it('retries a write that failed (full storage) instead of taking it as done', () => {
+    const storage = new FakeStorage();
+    const sync = draftSync(storage, 'draft:new');
+    storage.failWrites = true;
+    sync.keep(sampleDraft(), NOW);
+    storage.failWrites = false;
+    sync.keep(sampleDraft(), NOW);
+    expect(readDraft(storage, 'draft:new', parseEditorDraft, NOW)).not.toBeNull();
+  });
+
+  it('rewrites an adopted draft with the next change, even when the payload is the same', () => {
+    const storage = new FakeStorage();
+    writeDraft(storage, 'draft:new', sampleDraft(), NOW);
+    const sync = draftSync(storage, 'draft:new');
+    sync.adopt();
+    const later = new Date(NOW.getTime() + 60_000);
+    sync.keep(sampleDraft(), later);
+    expect(readDraft(storage, 'draft:new', parseEditorDraft, later)?.savedAt).toBe(later.toISOString());
+  });
+
+  it('removes a restored draft whose only change was a photo that expired (not offered again)', async () => {
+    // The editor for a new recipe: the start is an empty form; the draft held nothing but a photo.
+    const storage = new FakeStorage();
+    const start = newForm();
+    const draft: EditorDraft = {
+      form: { ...cloneForm(start), image: photo(17) },
+      base: null,
+      version: null,
+      createKey: 'abcdef1234567890',
+      conflict: null,
+    };
+    writeDraft(storage, 'draft:new', draft, NOW);
+    const restored = readDraft(storage, 'draft:new', parseEditorDraft, NOW)?.data;
+    if (!restored) throw new Error('draft must restore');
+    const sync = draftSync(storage, 'draft:new');
+    sync.adopt();
+    expect(await verifyDraftImage(restored.form, null, async () => 'missing')).toBe(true);
+    // The editor's autosave: the form is back at its start, so the draft goes.
+    expect(formKey(restored.form)).toBe(formKey(start));
+    sync.drop();
+    expect(readDraft(storage, 'draft:new', parseEditorDraft, NOW)).toBeNull();
+  });
+
+  it('stores a restored draft without its expired photo when it holds more', async () => {
+    const storage = new FakeStorage();
+    writeDraft(storage, 'draft:new', sampleDraft(), NOW);
+    const restored = readDraft(storage, 'draft:new', parseEditorDraft, NOW)?.data;
+    if (!restored) throw new Error('draft must restore');
+    const sync = draftSync(storage, 'draft:new');
+    sync.adopt();
+    await verifyDraftImage(restored.form, null, async () => 'missing');
+    sync.keep(restored, NOW);
+    const again = readDraft(storage, 'draft:new', parseEditorDraft, NOW)?.data;
+    expect(again?.form.image).toBeNull();
+    expect(again?.form.title).toBe('Käsespätzle');
+  });
+});
+
 describe('pruneDrafts', () => {
   it('removes expired drafts of other recipes and keeps everything else', () => {
     const storage = new FakeStorage();
@@ -170,5 +270,72 @@ describe('draft prompt time (NF-10)', () => {
     expect(deletedWhen(new Date(2026, 8, 23, 9, 0).toISOString(), now)).toBe('heute');
     expect(deletedWhen(new Date(2026, 8, 20, 9, 0).toISOString(), now)).toBe('vor 3 Tagen');
     expect(deletedWhen(new Date(2026, 2, 12, 9, 0).toISOString(), now)).toBe('am 12.03.2026');
+  });
+});
+
+describe('photo of a restored draft (F-09 AK)', () => {
+  function stored(draft: EditorDraft): EditorDraft {
+    const storage = new FakeStorage();
+    writeDraft(storage, 'draft:new', draft, NOW);
+    const restored = readDraft(storage, 'draft:new', parseEditorDraft, NOW)?.data;
+    if (!restored) throw new Error('draft must restore');
+    return restored;
+  }
+
+  it('drops a photo the server deleted meanwhile (GET /images/:id → 404)', async () => {
+    const draft = stored(sampleDraft());
+    const asked: number[] = [];
+    const gone = await verifyDraftImage(draft.form, draft.base, async (id) => {
+      asked.push(id);
+      return 'missing';
+    });
+    expect(asked).toEqual([17]);
+    expect(gone).toBe(true);
+    expect(draft.form.image).toBeNull();
+    // The rest of the draft stays.
+    expect(draft.form.title).toBe('Käsespätzle');
+    expect(draft.form.items).toHaveLength(3);
+  });
+
+  it('keeps a photo that still exists or could not be checked (offline)', async () => {
+    for (const state of ['present', 'unknown'] as const) {
+      const draft = stored(sampleDraft());
+      expect(await verifyDraftImage(draft.form, draft.base, async () => state)).toBe(false);
+      expect(draft.form.image?.id).toBe(17);
+    }
+  });
+
+  it('does not check a draft without a photo or the recipe’s own photo', async () => {
+    const lookup = async (): Promise<'missing'> => {
+      throw new Error('no lookup expected');
+    };
+    const empty = sampleDraft();
+    empty.form.image = null;
+    expect(await verifyDraftImage(empty.form, null, lookup)).toBe(false);
+    // Edit mode: the photo came with the loaded version (base); the version check guards it.
+    const edit = sampleDraft();
+    edit.base = cloneForm(edit.form);
+    expect(await verifyDraftImage(edit.form, edit.base, lookup)).toBe(false);
+    expect(edit.form.image?.id).toBe(17);
+  });
+
+  it('keeps a photo chosen while the check was running', async () => {
+    const draft = stored(sampleDraft());
+    const check = verifyDraftImage(draft.form, null, async () => {
+      draft.form.image = photo(18);
+      return 'missing';
+    });
+    expect(await check).toBe(false);
+    expect(draft.form.image?.id).toBe(18);
+  });
+
+  it('reads drafts written before M3: without a photo they restore, with an id only they are dropped', () => {
+    const legacy = (imageId: number | null): unknown => {
+      const { image: _image, ...form } = sampleDraft().form;
+      return { form: { ...form, imageId }, base: null, version: null, createKey: 'k', conflict: null };
+    };
+    expect(parseEditorDraft(legacy(null))?.form.image).toBeNull();
+    // The preview URLs are unknown; restoring would silently drop the photo on save.
+    expect(parseEditorDraft(legacy(17))).toBeNull();
   });
 });

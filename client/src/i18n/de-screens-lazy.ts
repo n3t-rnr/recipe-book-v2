@@ -26,6 +26,8 @@ export const dl = {
 
   detail: {
     backToList: 'Zurück zu Rezepte',
+    /** The photo opens full screen (F-29). */
+    zoom: 'Foto vergrößern',
     prep: 'Vorbereitung',
     cook: 'Kochen',
     servings: 'Portionen',

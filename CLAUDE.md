@@ -4,7 +4,7 @@ Browser-based recipe app for the home LAN. One Node process on a Windows PC serv
 
 ## Current phase
 
-M0 (foundation) and M2 (profiles and recipe core) are done; next is M3 (images). The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). UI texts live in `client/src/i18n/` (`de.ts` for the entry chunk, `de-screens*.ts` and `de-editor.ts` for lazy chunks). The initial JS budget is almost used up (34.9 of 35 KB): new code belongs in lazy chunks.
+M0 (foundation), M2 (profiles and recipe core) and M3 (images) are implemented; M3 is in the user's review, next is M4 (tags, search, filters, sorting). The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). UI texts live in `client/src/i18n/` (`de.ts` for the entry chunk, `de-screens*.ts` and `de-editor.ts` for lazy chunks). Initial JS is at 33.1 of 35 KB (after the entry-chunk group in vite.config.ts): keep new code in lazy chunks where possible.
 
 Developer setup and commands: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
 
@@ -16,14 +16,14 @@ Developer setup and commands: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
 
 ## Stack (chapter 5.1)
 
-Svelte 5 SPA + Vite 8 with an own mini router · Node 24 LTS running TypeScript via type stripping (no server build) · Hono 4 + `@hono/node-server` · SQLite via better-sqlite3 (WAL, FTS5), hand-written SQL, numbered migrations · sharp for images · zod (`zod/mini`) in `shared/` · Biome · Vitest · Playwright · pnpm 10 (`packageManager: pnpm@10.34.5`), one `package.json` with `client/`, `server/`, `shared/` and three tsconfigs · WinSW Windows service.
+Svelte 5 SPA + Vite 8 with an own mini router · Node 24 LTS running TypeScript via type stripping (no server build) · Hono 4 + `@hono/node-server` · SQLite via better-sqlite3 (WAL, FTS5), hand-written SQL, numbered migrations · sharp for images · zod (`zod/mini`) in `shared/` · Biome · Vitest · Playwright · pnpm 10 (`packageManager: pnpm@10.34.5`), one `package.json` with `client/`, `server/`, `shared/` and three tsconfigs for client, server and shared (plus `tsconfig.e2e.json` for the Playwright tests, which need DOM types) · WinSW Windows service.
 
 Project layout: chapter 5.5. Do not add a monorepo/workspace, an ORM, Tailwind, a UI component library, or a router/state/date/icon package.
 
 ## Hard rules
 
 - **Dependencies (NF-02):** runtime `dependencies` are exactly `hono`, `@hono/node-server`, `better-sqlite3`, `sharp`, `zod`, `qrcode-generator`. Any addition needs an ADR in `docs/ADR/`. The client bundle contains only `svelte` and `zod/mini` (editor chunk only).
-- **Budgets (NF-01, NF-05):** initial JS ≤ 35 KB gzip, every lazily loaded JS chunk ≤ 30 KB gzip (ADR 0002; the total is only reported), CSS ≤ 15 KB, fonts ≤ 100 KB WOFF2; server RAM ≤ 80 MB idle. `scripts/size-check.ts` fails the build when a budget is exceeded.
+- **Budgets (NF-01, NF-05):** initial JS ≤ 35 KB gzip, every lazily loaded JS chunk ≤ 30 KB gzip (ADR 0002; the total is only reported), CSS ≤ 15 KB, fonts ≤ 100 KB WOFF2; server RAM ≤ 100 MB idle (ADR 0003). `scripts/size-check.ts` fails the build when a budget is exceeded.
 - **Colors (NF-12, NF-13, chapter 6.7):** palette `#EFE6DD` Linen, `#231F20` Raisin Black, `#BB4430` Terracotta (`#D9634F` in dark mode), `#7EBDC2` Moonstone, `#F3DFA2` Vanilla. Colors only as CSS custom properties in `client/src/styles/tokens.css`; no color literals anywhere else. Moonstone and Vanilla only as surfaces with dark text, never as text color. Terracotta on Linen never as normal-size text (4.28:1). State is never conveyed by color alone.
 - **Touch (NF-07):** tap targets ≥ 44×44 px, kitchen actions (heart, stars, FAB, save) ≥ 48×48 px; no feature relies on hover, long press or double tap.
 - **Icons and fonts (NF-15):** one stroke-based inline SVG sprite with `currentColor`; no emoji or text glyphs as icons; max. 2 self-hosted WOFF2 font families, no CDN.

@@ -11,7 +11,7 @@ import { LIMITS } from '../../../shared/constants.ts';
 import type { ValidationDetail } from '../../../shared/error-codes.ts';
 import { normalize } from '../../../shared/normalize.ts';
 import { RecipeCreateInput, RecipeUpdateInput } from '../../../shared/schemas.ts';
-import type { RecipeDetail } from '../../../shared/types.ts';
+import type { DetailImage, RecipeDetail } from '../../../shared/types.ts';
 import { toValidationDetails } from '../../../shared/validation.ts';
 import { deEditor } from '../i18n/de-editor.ts';
 import { formatAbsoluteDate, formatDate, formatDecimal, formatMinutes, parseAmount } from './format.ts';
@@ -59,12 +59,16 @@ export interface EditorForm {
   cookMinutes: string;
   source: string;
   description: string;
-  /** Unchanged in M2 (the photo section follows in M3); PUT replaces the recipe, so it is sent back. */
-  imageId: number | null;
+  /**
+   * The photo (F-14): id plus URLs and size for the preview, so a draft shows it again (F-09); null = none.
+   * Saving sends only the id (imageId); PUT replaces the recipe, so an unchanged photo is sent back.
+   */
+  image: DetailImage | null;
 }
 
 /** The fields compared in the conflict merge (F-07); lists count as one field each. */
 export const FIELDS = [
+  'image',
   'title',
   'tags',
   'ingredients',
@@ -111,8 +115,12 @@ export function newForm(title = ''): EditorForm {
     cookMinutes: '',
     source: '',
     description: '',
-    imageId: null,
+    image: null,
   };
+}
+
+function cloneImage(image: DetailImage | null): DetailImage | null {
+  return image && { ...image, urls: { ...image.urls } };
 }
 
 /** Deep copy; `rekey` assigns fresh keys (drafts, taking over lists in the conflict merge). */
@@ -128,7 +136,7 @@ export function cloneForm(form: EditorForm, rekey = false): EditorForm {
     cookMinutes: form.cookMinutes,
     source: form.source,
     description: form.description,
-    imageId: form.imageId,
+    image: cloneImage(form.image),
   };
 }
 
@@ -201,7 +209,7 @@ export function formFromDetail(detail: RecipeDetail): EditorForm {
     cookMinutes: detail.cookMinutes === null ? '' : String(detail.cookMinutes),
     source: detail.source,
     description: detail.description,
-    imageId: detail.image?.id ?? null,
+    image: cloneImage(detail.image),
   };
 }
 
@@ -260,6 +268,7 @@ function canonicalFields(form: EditorForm): Record<FieldName, unknown> {
     ]);
   }
   return {
+    image: form.image?.id ?? null,
     title: form.title.trim(),
     tags: canonicalTags(form.tags),
     ingredients,
@@ -297,6 +306,9 @@ export function applyField(target: EditorForm, field: FieldName, source: EditorF
     case 'tags':
       target.tags = [...source.tags];
       break;
+    case 'image':
+      target.image = cloneImage(source.image);
+      break;
     default:
       target[field] = source[field];
   }
@@ -318,6 +330,8 @@ export function fieldPreview(form: EditorForm, field: FieldName): string {
       return deEditor.conflict.steps(form.steps.filter((s) => s.text.trim() !== '').length);
     case 'tags':
       return form.tags.length > 0 ? shorten(form.tags.join(', ')) : deEditor.conflict.none;
+    case 'image':
+      return form.image ? deEditor.photo.otherPhoto : deEditor.photo.noPhoto;
     case 'prepMinutes':
     case 'cookMinutes': {
       const text = form[field].trim();
@@ -414,7 +428,7 @@ export function dragShift(index: number, from: number, to: number, distance: num
 
 // ---------------------------------------------------------------- building the request
 
-/** UI error keys: field names, "item:<key>:<part>", "step:<key>", "ingredients", "steps", "form". */
+/** UI error keys: field names, "item:<key>:<part>", "step:<key>", "ingredients", "steps", "image", "form". */
 export type FieldErrors = Record<string, string>;
 export type ItemPart = 'amount' | 'unit' | 'name' | 'note' | 'group';
 
@@ -452,7 +466,7 @@ function parseMinutes(text: string): number | null | undefined {
 }
 
 const SCALAR_FIELDS: ReadonlySet<string> = new Set(
-  FIELDS.filter((f) => f !== 'ingredients' && f !== 'steps'),
+  FIELDS.filter((f) => f !== 'ingredients' && f !== 'steps' && f !== 'image'),
 );
 
 function errorKeyForPath(field: string, map: FieldMap): string {
@@ -473,6 +487,8 @@ function errorKeyForPath(field: string, map: FieldMap): string {
     const key = index === undefined ? undefined : map.stepKeys[Number(index)];
     return key === undefined ? 'steps' : errorKey.step(key);
   }
+  // Unknown or taken imageId (Kap. 4.6): the photo is gone, the editor drops it (F-09).
+  if (head === 'imageId') return 'image';
   return SCALAR_FIELDS.has(head) ? head : 'form';
 }
 
@@ -560,7 +576,7 @@ export function buildRequest(form: EditorForm, ctx: SaveContext): BuildResult {
     ingredients,
     steps,
     tags: form.tags,
-    imageId: form.imageId,
+    imageId: form.image?.id ?? null,
   };
 
   let body: RecipeCreateInput | RecipeUpdateInput | null = null;
@@ -642,6 +658,13 @@ const ItemSchema = z.union([
   z.object({ kind: z.literal('group'), key: z.string(), name: z.string() }),
 ]);
 
+const ImageSchema = z.object({
+  id: z.int(),
+  urls: z.object({ s: z.string(), m: z.string(), l: z.string() }),
+  width: z.int(),
+  height: z.int(),
+});
+
 const FormSchema = z.object({
   title: z.string(),
   tags: z.array(z.string()),
@@ -653,8 +676,19 @@ const FormSchema = z.object({
   cookMinutes: z.string(),
   source: z.string(),
   description: z.string(),
-  imageId: z.nullable(z.int()),
+  image: z.optional(z.nullable(ImageSchema)),
+  /** Drafts written before M3 kept only the id; one without a photo is still usable. */
+  imageId: z.optional(z.nullable(z.int())),
 });
+
+type StoredForm = z.infer<typeof FormSchema>;
+
+/** A stored form as EditorForm with fresh keys; null for a pre-M3 draft whose photo URLs are unknown. */
+function storedForm(stored: StoredForm): EditorForm | null {
+  const { image, imageId, ...rest } = stored;
+  if (image === undefined && typeof imageId === 'number') return null;
+  return cloneForm({ ...rest, image: image ?? null }, true);
+}
 
 const DraftSchema = z.object({
   form: FormSchema,
@@ -680,13 +714,53 @@ export function parseEditorDraft(data: unknown): EditorDraft | null {
   const result = DraftSchema.safeParse(data);
   if (!result.success) return null;
   const d = result.data;
+  const form = storedForm(d.form);
+  const base = d.base ? storedForm(d.base) : null;
+  const mine = d.conflict ? storedForm(d.conflict.mine) : null;
+  if (!form || (d.base && !base) || (d.conflict && !mine)) return null;
   return {
-    form: cloneForm(d.form, true),
-    base: d.base ? cloneForm(d.base, true) : null,
+    form,
+    base,
     version: d.version,
     createKey: d.createKey,
-    conflict: d.conflict ? { mine: cloneForm(d.conflict.mine, true), fields: [...d.conflict.fields] } : null,
+    conflict: d.conflict && mine ? { mine, fields: [...d.conflict.fields] } : null,
   };
+}
+
+/**
+ * F-09 AK: a restored draft may point to a photo the server has deleted meanwhile (unassigned uploads
+ * expire after 7 days). Only a photo the draft added is checked; the recipe's own photo (`base`) belongs
+ * to the saved version, which the conflict check guards. When the server answers "missing" and the form
+ * still shows that photo, it is dropped from the form; returns true then, so the editor can say so.
+ */
+export async function verifyDraftImage(
+  form: EditorForm,
+  base: EditorForm | null,
+  state: (id: number) => Promise<'present' | 'missing' | 'unknown'>,
+): Promise<boolean> {
+  const id = form.image?.id;
+  if (id === undefined || id === base?.image?.id) return false;
+  if ((await state(id)) !== 'missing' || form.image?.id !== id) return false;
+  form.image = null;
+  return true;
+}
+
+/** Marks the photo section (ImagePicker's root carries the attribute `data-photo`). */
+export const PHOTO_SECTION = '[data-photo]';
+
+/**
+ * Where a failed save scrolls to and puts the focus (NF-11): the first invalid field or error message in
+ * form order, apart from the photo section's hints (expired photo, file too large, failed upload, F-14).
+ * They are no errors of the save; the photo comes first in the form and would take the jump away from
+ * the field that needs fixing.
+ */
+export function firstError<T extends { closest(selector: string): unknown }>(
+  candidates: Iterable<T>,
+): T | undefined {
+  for (const candidate of candidates) {
+    if (!candidate.closest(PHOTO_SECTION)) return candidate;
+  }
+  return undefined;
 }
 
 function pad2(n: number): string {

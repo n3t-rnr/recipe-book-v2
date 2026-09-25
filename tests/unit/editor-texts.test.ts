@@ -36,6 +36,18 @@ describe('de-editor.ts wording (NF-10 AK)', () => {
     expect(deEditor.saving.retry).toBe('Erneut versuchen');
   });
 
+  it('uses the photo texts of F-14, F-09 and the artboards', () => {
+    expect(deEditor.photo.take).toBe('Foto aufnehmen');
+    expect(deEditor.photo.choose).toBe('Bild auswählen');
+    expect(deEditor.photo.empty).toBe('Noch kein Foto');
+    expect(deEditor.photo.emptyHint).toBe('Ohne Foto zeigt die App ein Platzhalterbild.');
+    expect(deEditor.photo.tooLarge).toBe('Bild zu groß (max. 20 MB)');
+    expect(deEditor.photo.gone).toBe('Foto nicht mehr vorhanden – bitte erneut aufnehmen');
+    expect(deEditor.photo.retry).toBe('Erneut hochladen');
+    // "Wird hochgeladen … 72 %" with a no-break space before the percent sign.
+    expect(deEditor.photo.uploading(72)).toBe('Wird hochgeladen … 72 %');
+  });
+
   it('lists the unit suggestions of F-10', () => {
     expect(deEditor.unitSuggestions).toEqual([
       'g',

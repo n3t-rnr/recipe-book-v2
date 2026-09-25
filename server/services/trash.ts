@@ -1,6 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { IMAGE_VARIANTS } from '../../shared/constants.ts';
 import type { TrashItem } from '../../shared/types.ts';
 import { removeFromIndex } from '../db/fts.ts';
 import { bumpDataRevision } from '../db/repos/meta.ts';
@@ -15,6 +12,7 @@ import {
 import type { DB } from '../db/types.ts';
 import { AppError } from '../errors.ts';
 import type { AppDeps } from '../types.ts';
+import { moveImageFilesToTrash } from './image-files.ts';
 
 /** What the trash functions need; the maintenance timer (services/maintenance.ts) passes the app's AppDeps. */
 export type TrashDeps = Pick<AppDeps, 'db' | 'paths' | 'log' | 'now'> & {
@@ -22,9 +20,6 @@ export type TrashDeps = Pick<AppDeps, 'db' | 'paths' | 'log' | 'now'> & {
 };
 
 const DAY_MS = 86_400_000;
-const VARIANTS = Object.keys(IMAGE_VARIANTS);
-/** file_key is 16 hex characters (Kap. 4.6); anything else never becomes part of a path. */
-const FILE_KEY = /^[0-9a-f]{16}$/i;
 
 /** Date of the automatic purge: deletedAt + TRASH_DAYS (F-08). */
 export function purgeAtFor(deletedAt: string, trashDays: number): string {
@@ -89,47 +84,4 @@ export function purgeExpired(deps: TrashDeps, now: Date = deps.now()): number {
   moveImageFilesToTrash(deps, fileKeys);
   if (count > 0) deps.log.info('trash purged', { recipes: count, images: fileKeys.length, cutoff });
   return count;
-}
-
-/**
- * Moves <file_key>-{s,m,l}.webp from images/ to images/.trash/ (Kap. 4.6, F-16). Missing files are
- * skipped; other failures are logged and left to the maintenance run, because the database change
- * is already committed. The modification time is reset so the 14-day retention in .trash starts now.
- */
-export function moveImageFilesToTrash(
-  deps: Pick<AppDeps, 'paths' | 'log' | 'now'>,
-  fileKeys: readonly string[],
-): void {
-  if (fileKeys.length === 0) return;
-  const { images, imagesTrash } = deps.paths;
-  try {
-    fs.mkdirSync(imagesTrash, { recursive: true });
-  } catch (err) {
-    deps.log.warn('creating images/.trash failed', { err });
-    return;
-  }
-  const now = deps.now();
-  for (const key of fileKeys) {
-    if (!FILE_KEY.test(key)) {
-      deps.log.warn('invalid image file key skipped', { fileKey: key });
-      continue;
-    }
-    for (const variant of VARIANTS) {
-      const name = `${key}-${variant}.webp`;
-      const target = path.join(imagesTrash, name);
-      try {
-        fs.renameSync(path.join(images, name), target);
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          deps.log.warn('moving image to trash failed', { file: name, err });
-        }
-        continue;
-      }
-      try {
-        fs.utimesSync(target, now, now);
-      } catch {
-        // Only affects when the maintenance removes the file; the move itself succeeded.
-      }
-    }
-  }
 }

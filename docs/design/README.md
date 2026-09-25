@@ -46,6 +46,13 @@ Im Mockup stehen dunkle Flächen mit Bildsymbol für echte Fotos.
 - **Navigation:** Am Handy und Tablet hochkant eine schwebende dunkle Leiste, am Tablet quer eine Leiste links mit „Neu“ oben und Avatar unten.
 - **Dark Mode:** Primärflächen `#D9634F` mit dunkler Schrift, Text in Primärfarbe `#F57C67`, Navigation `#373334`. Alle Werte stehen mit Kontrast im Token-Blatt.
 
+## Freigegebene Abweichungen von den Artboards (NF-16)
+
+| Datum | Screen | Abweichung | Grund |
+|---|---|---|---|
+| 25.09.2026 | Rezeptdetail, Handy und Tablet hochkant | Oben rechts über dem Foto sitzt der Avatar für den Profilwechsel, auf derselben runden Fläche wie Menü und Bearbeiten (48 px). Im Artboard fehlt er. | F-03 verlangt den Wechsel mit 2 Fingertipps auch aus dem Detail; Entscheidung von Sebastian. |
+| 25.09.2026 | Neues Rezept und Rezept bearbeiten, Zutatenzeilen (Handy und Tablet) | Die Felder „Menge“ und „Einheit“ behalten die Breiten der Artboards (72 und 88 px, in der einzeiligen Zeile 64 und 76 px), haben innen aber links und rechts 5 px statt 12 px Abstand (4,5 px mit Fokus- oder Fehlerrahmen). Der Text beginnt dadurch 7 px weiter links. Der Pfeil der Einheiten-Vorschläge ist ausgeblendet; die Vorschläge erscheinen weiter beim Tippen. | Mit 12 px Abstand waren „Menge“, „Einheit“ und längere Einheiten wie „Packung“ und „Scheibe“ abgeschnitten, in Chrome wegen des 21 px breiten Pfeils auch „Stück“, „Bund“ und „Prise“. Die Artboards zeigen nur kurze Werte („g“). Abweichung zur Freigabe durch Sebastian. |
+
 ## Farbpalette (verbindlich)
 
 Quelle: https://coolors.co/231f20-bb4430-7ebdc2-f3dfa2-efe6dd

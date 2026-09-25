@@ -33,8 +33,9 @@
     return result.rejected;
   }
 
+  /** Ctrl/Cmd+Enter falls through to the form, which saves and commits the pending text first (NF-11). */
   function onkeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Enter' || event.isComposing) return;
+    if (event.key !== 'Enter' || event.isComposing || event.ctrlKey || event.metaKey) return;
     event.preventDefault();
     if (pending.trim() === '') return;
     pending = add(pending).join(', ');

@@ -188,8 +188,8 @@ describe('client guard (NF-21, NF-19)', () => {
       headers: { 'X-Rezepte-Client': '1', 'Content-Type': 'image/jpeg' },
       body: new Uint8Array(1_200_000),
     });
-    // No upload route in M0: the guard lets it through to the API catch-all.
-    expect(res.status).toBe(404);
+    // The guard lets it through (no 400, no JSON-limit 413); the upload route asks for a profile first (M3).
+    expect(res.status).toBe(401);
     const json = await ctx.app.request(`${BASE}/api/v1/images`, {
       method: 'POST',
       headers: CLIENT_HEADERS,

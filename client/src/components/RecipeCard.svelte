@@ -17,8 +17,8 @@
     href?: string | undefined;
     /** First visible card: eager image for LCP. */
     eager?: boolean;
-    /** Phone: one column; tablet portrait: two columns (NF-06 picks s or m from this). */
-    sizes?: string;
+    /** Overrides the card sizes of RecipeMedia (CARD_SIZES: one column on phones, two in tablet portrait, NF-06). */
+    sizes?: string | undefined;
     showFavorite?: boolean;
     onfavorite?: ((next: boolean) => void) | undefined;
   }
@@ -27,7 +27,7 @@
     recipe,
     href,
     eager = false,
-    sizes = '(min-width: 600px) calc(50vw - 28px), calc(100vw - 40px)',
+    sizes,
     showFavorite = false,
     onfavorite,
   }: Props = $props();

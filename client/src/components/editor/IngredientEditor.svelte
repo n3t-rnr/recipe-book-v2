@@ -87,9 +87,13 @@
     focusId(`${uid}-group-${group.key}`);
   }
 
-  /** Enter in name or note of the last ingredient adds a row and focuses its amount (F-10 AK). */
+  /**
+   * Enter in name or note of the last ingredient adds a row and focuses its amount (F-10 AK).
+   * Ctrl/Cmd+Enter falls through to the form, which saves (NF-11).
+   */
   function onLastKeydown(event: KeyboardEvent, index: number): void {
-    if (event.key !== 'Enter' || event.isComposing || event.shiftKey || index !== lastIngredient) return;
+    if (event.key !== 'Enter' || event.isComposing || index !== lastIngredient) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
     event.preventDefault();
     addIngredient();
   }
@@ -427,14 +431,33 @@
     cursor: grabbing;
   }
 
+  /* Menge and Einheit keep the artboard widths, but with 5 px instead of 12 px side padding (4.5 px with
+     the 2 px focus or error border), so „Menge“, „Einheit“ and every suggested unit („Packung“) fit even
+     in the one-line row; the deviation awaits approval in docs/design/README.md (NF-16). */
   .fields > .input.amount {
     order: 2;
     width: 72px;
+    padding: 0 5px;
   }
 
   .fields > .input.unit {
     order: 3;
     width: 88px;
+    padding: 0 5px;
+  }
+
+  .fields > .input:is(.amount, .unit):is(:focus-visible, .invalid) {
+    padding: 0 4.5px;
+  }
+
+  /* The datalist arrow (21 px in Chromium) would cut the unit; typing still shows the suggestions.
+     !important: Chromium sets the arrow's display as an inline style in the input's shadow tree. */
+  .unit::-webkit-calendar-picker-indicator {
+    display: none !important;
+  }
+
+  .unit::-webkit-list-button {
+    display: none !important;
   }
 
   .fields > :global(.menu) {

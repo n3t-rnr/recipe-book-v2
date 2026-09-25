@@ -3,6 +3,7 @@
  * action. The host component (components/Toast.svelte) shows `current` and runs the timer.
  */
 import { de } from '../i18n/de.ts';
+import { ApiError, errorMessage } from '../lib/api.ts';
 
 export type ToastAction = () => Promise<void> | void;
 
@@ -47,13 +48,26 @@ class ToastState {
     return id;
   }
 
+  /**
+   * Toast with the German message of a failed request (Kap. 6.6). A timeout or a request that did not
+   * reach the server offers "Erneut versuchen", which runs `retry` (NF-09); any other error would only
+   * fail again, so it gets no action.
+   */
+  error(err: unknown, retry: ToastAction): number {
+    const again = err instanceof ApiError && (err.code === 'TIMEOUT' || err.code === 'NETWORK');
+    return this.show(errorMessage(err), again ? { action: { label: de.common.retry, run: retry } } : {});
+  }
+
   dismiss(id: number): void {
     const index = this.items.findIndex((t) => t.id === id);
     if (index !== -1) this.items.splice(index, 1);
     if (index === 0) this.busy = false;
   }
 
-  /** Runs the action of a toast and removes it; a failing action shows a short error toast. */
+  /**
+   * Runs the action of a toast and removes it. A failed request (e.g. "Rückgängig") shows its message
+   * and, after a timeout, "Erneut versuchen" for the same action (NF-09); anything else a short error.
+   */
   async act(id: number): Promise<void> {
     const item = this.items.find((t) => t.id === id);
     if (!item?.run || this.busy) return;
@@ -63,7 +77,8 @@ class ToastState {
       this.dismiss(id);
     } catch (err) {
       this.dismiss(id);
-      this.show(err instanceof Error && err.name === 'ApiError' ? err.message : de.toast.actionFailed);
+      if (err instanceof ApiError) this.error(err, item.run);
+      else this.show(de.toast.actionFailed);
     } finally {
       this.busy = false;
     }

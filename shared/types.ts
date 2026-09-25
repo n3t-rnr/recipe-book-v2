@@ -138,3 +138,16 @@ export interface TrashItem {
 export interface TrashResponse {
   items: TrashItem[];
 }
+
+/** 201 answer of POST /images (Kap. 7.5): the image exists but is not assigned to a recipe yet. */
+export interface ImageUploadResponse {
+  imageId: number;
+  urls: { s: string; m: string; l: string };
+  width: number;
+  height: number;
+}
+
+/** GET /images/:id (Kap. 7.5): lets the editor check a draft's image before restoring it (F-09). */
+export interface ImageInfo extends ImageUploadResponse {
+  assigned: boolean;
+}

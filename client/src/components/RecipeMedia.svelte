@@ -1,9 +1,10 @@
 <script lang="ts">
-  // Recipe image with a fixed aspect ratio (NF-06: no layout shift): the photo as <img> with srcset
-  // (s = 720 px card variant, m = 1200 px long edge; never l in lists), lazy unless it is the first
-  // card, or the placeholder image when the recipe has no photo (F-16).
-  import type { CardImage, DetailImage } from '../../../shared/types.ts';
+  // Recipe image with a fixed aspect ratio (NF-06: no layout shift): the photo as <img> (lib/media.ts:
+  // cards offer s = 720 px and m = 1200 px via srcset, the detail loads m; never l), lazy unless it is
+  // the first card, or the placeholder image when the recipe has no photo (F-16).
   import { IMAGE_VARIANTS } from '../../../shared/constants.ts';
+  import type { CardImage, DetailImage } from '../../../shared/types.ts';
+  import { CARD_SIZES, mediaSource } from '../lib/media.ts';
   import PlaceholderImage from './PlaceholderImage.svelte';
 
   interface Props {
@@ -16,8 +17,8 @@
     ratio?: string;
     /** Corner radius in px (cards clip via their own border radius). */
     radius?: number;
-    /** sizes attribute; must match the layout so the browser picks s or m (NF-06). */
-    sizes?: string;
+    /** sizes attribute of cards; must match the layout so the browser picks s or m (NF-06). */
+    sizes?: string | undefined;
     /** First card of a list: load eagerly for LCP (NF-03). */
     eager?: boolean;
     /** Alt text; empty in cards because the title is next to the image. */
@@ -32,31 +33,21 @@
     use = 'card',
     ratio = '3 / 2',
     radius = 0,
-    sizes = '100vw',
+    sizes = CARD_SIZES,
     eager = false,
     alt = '',
     addPhoto,
   }: Props = $props();
 
-  /** Width of variant m: the long edge is 1200 px, never upscaled (F-15). */
-  function mediumWidth(img: { width: number; height: number }): number {
-    const scale = Math.min(1, IMAGE_VARIANTS.m.longEdge / Math.max(img.width, img.height, 1));
-    return Math.max(1, Math.round(img.width * scale));
-  }
-
-  const srcset = $derived.by(() => {
-    if (!image) return undefined;
-    const m = `${image.urls.m} ${mediumWidth(image)}w`;
-    return use === 'card' ? `${image.urls.s} ${IMAGE_VARIANTS.s.width}w, ${m}` : m;
-  });
+  const source = $derived(image && mediaSource(image, use));
 </script>
 
 <div class="media" style:aspect-ratio={ratio} style:border-radius={radius ? `${radius}px` : undefined}>
-  {#if image}
+  {#if source}
     <img
-      src={use === 'card' ? image.urls.s : image.urls.m}
-      {srcset}
-      {sizes}
+      src={source.src}
+      srcset={source.srcset}
+      sizes={source.srcset && sizes}
       {alt}
       width={IMAGE_VARIANTS.s.width}
       height={IMAGE_VARIANTS.s.height}

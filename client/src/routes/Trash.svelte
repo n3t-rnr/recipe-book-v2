@@ -73,7 +73,7 @@
         action: { label: dl.trash.open, run: () => router.navigate(paths.recipe(item.id)) },
       });
     } catch (err) {
-      toast.show(errorMessage(err));
+      toast.error(err, () => restore(item));
       void load();
     } finally {
       setPending(item.id, false);
@@ -91,7 +91,8 @@
       confirm = null;
       // Gone already (another device): the list catches up.
       if (err instanceof ApiError && (err.code === 'NOT_FOUND' || err.code === 'NOT_IN_TRASH')) void load();
-      toast.show(errorMessage(err));
+      // After a timeout "Erneut versuchen" repeats the confirmed purge (NF-09).
+      toast.error(err, () => purge(item));
     } finally {
       setPending(item.id, false);
     }

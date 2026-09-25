@@ -68,7 +68,8 @@
       profile.remove(p.id);
     } catch (err) {
       confirming = false;
-      toast.show(errorMessage(err));
+      // After a timeout "Erneut versuchen" repeats the confirmed delete (NF-09).
+      toast.error(err, () => remove(p));
     } finally {
       busy = false;
     }

@@ -7,9 +7,10 @@
   import SubHeader from '../components/screens/SubHeader.svelte';
   import { de } from '../i18n/de.ts';
   import { dl } from '../i18n/de-screens-lazy.ts';
-  import { errorMessage, get, isAbortError } from '../lib/api.ts';
+  import { ApiError, errorMessage, get, isAbortError } from '../lib/api.ts';
   import { formatUptime } from '../lib/screens.ts';
   import { connection } from '../state/connection.svelte.ts';
+  import { toast } from '../state/toast.svelte.ts';
 
   /** The part of GET /api/v1/health (Kap. 7.8) this page shows. */
   interface Health {
@@ -35,7 +36,11 @@
     try {
       health = await get<Health>('/health', { signal: own.signal, profile: false });
     } catch (err) {
-      if (!isAbortError(err)) failure = errorMessage(err);
+      if (isAbortError(err)) return;
+      failure = errorMessage(err);
+      // The last state stays visible; like the list, a failed "Aktualisieren" says so in a toast, which
+      // offers "Erneut versuchen" after a timeout (NF-09). Offline is explained by the banner.
+      if (health && !(err instanceof ApiError && err.code === 'NETWORK')) toast.error(err, load);
     } finally {
       if (controller === own) {
         controller = null;

@@ -1,6 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reindexRecipe } from '../../server/db/fts.ts';
+import { getMeta } from '../../server/db/repos/meta.ts';
 import type { DB } from '../../server/db/types.ts';
+import { buildHealth } from '../../server/services/health.ts';
+import { SWEEP_META_KEY } from '../../server/services/image-cleanup.ts';
 import {
   MAINTENANCE_INTERVAL_MS,
   type MaintenanceDeps,
@@ -145,5 +150,78 @@ describe('startMaintenance (F-08, NF-05)', () => {
     const before = refTimers();
     stop = startMaintenance(deps);
     expect(refTimers()).toBe(before);
+  });
+});
+
+describe('image cleanup in the maintenance run (F-16, Kap. 4.6)', () => {
+  const DAY = 24 * HOUR;
+  const at = (offsetMs: number) => new Date(clock.getTime() + offsetMs);
+
+  function touch(dir: string, name: string, mtime: Date): string {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, name);
+    fs.utimesSync(file, mtime, mtime);
+    return file;
+  }
+
+  function insertImage(fileKey: string, createdAt: Date): void {
+    ctx.deps.db
+      .prepare(
+        'INSERT INTO images(file_key, width, height, bytes_total, created_at) VALUES (?, 2048, 1365, 1, ?)',
+      )
+      .run(fileKey, createdAt.toISOString());
+  }
+
+  it('the first run cleans up images and tmp/ and the weekly sweep runs once', () => {
+    const { images, imagesTrash, tmp } = ctx.deps.paths;
+    insertImage('1111111111111111', at(-8 * DAY));
+    const expired = touch(images, '1111111111111111-s.webp', at(-8 * DAY));
+    const orphan = touch(images, '2222222222222222-m.webp', at(-2 * DAY));
+    const oldTrash = touch(imagesTrash, '3333333333333333-l.webp', at(-15 * DAY));
+    const leftover = touch(tmp, 'abc.upload', at(-2 * HOUR));
+
+    stop = startMaintenance(deps, { intervalMs: HOUR });
+    vi.advanceTimersByTime(FIRST_RUN_MS);
+
+    expect(ctx.deps.db.prepare('SELECT count(*) FROM images').pluck().get()).toBe(0);
+    expect(fs.existsSync(expired)).toBe(false);
+    expect(fs.existsSync(path.join(imagesTrash, '1111111111111111-s.webp'))).toBe(true);
+    expect(fs.existsSync(orphan)).toBe(false);
+    expect(fs.existsSync(path.join(imagesTrash, '2222222222222222-m.webp'))).toBe(true);
+    expect(fs.existsSync(oldTrash)).toBe(false);
+    expect(fs.existsSync(leftover)).toBe(false);
+    expect(maintenanceLogs()).toEqual([
+      expect.objectContaining({ level: 'info', imagesExpired: 1, imageTrashDeleted: 1, tmpDeleted: 1 }),
+    ]);
+    expect(maintenanceLogs()[0]).not.toHaveProperty('trashPurged');
+    const sweeps = () => ctx.log.entries.filter((e) => e.msg === 'image sweep');
+    expect(sweeps()).toEqual([expect.objectContaining({ trigger: 'weekly', orphansMoved: 1 })]);
+    expect(getMeta(ctx.deps.db, SWEEP_META_KEY)).toBe(clock.toISOString());
+    // The run counted what is left in images/.trash for /health: the two moved files (23 bytes each).
+    expect(buildHealth(ctx.deps).bytes.images).toBe(46);
+
+    vi.advanceTimersByTime(HOUR);
+    expect(sweeps()).toHaveLength(1);
+    expect(maintenanceLogs()).toHaveLength(1);
+  });
+
+  it('a failing trash purge does not stop the image cleanup', () => {
+    const db = ctx.deps.db;
+    insertRecipe(db, 'Alt', '2026-08-01T10:00:00.000Z');
+    db.exec(`
+      CREATE TRIGGER fail_purge BEFORE DELETE ON recipes
+      BEGIN
+        SELECT RAISE(ABORT, 'forced purge failure');
+      END;
+    `);
+    const leftover = touch(ctx.deps.paths.tmp, 'abc.upload', at(-2 * HOUR));
+
+    expect(() => runMaintenance(deps)).not.toThrow();
+
+    expect(ctx.log.entries.filter((e) => e.msg === 'maintenance failed')).toEqual([
+      expect.objectContaining({ level: 'error', task: 'trash' }),
+    ]);
+    expect(fs.existsSync(leftover)).toBe(false);
+    expect(maintenanceLogs()).toEqual([expect.objectContaining({ tmpDeleted: 1 })]);
   });
 });

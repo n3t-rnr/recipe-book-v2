@@ -1,16 +1,11 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { ValidationDetail } from '../../shared/error-codes.ts';
 import type { RecipeCreateInput, RecipeFields, RecipeUpdateInput } from '../../shared/schemas.ts';
 import type { DetailImage, InTrashDetails, PersonRef, RecipeDetail } from '../../shared/types.ts';
 import { reindexRecipe } from '../db/fts.ts';
+import { assignImage, detachRecipeImages, findImage, findRecipeImage } from '../db/repos/images.ts';
 import {
-  assignImage,
-  detachRecipeImages,
-  findImage,
   findRecipe,
   findRecipeIdByCreateKey,
-  findRecipeImage,
   insertRecipe,
   isFavorite,
   listIngredients,
@@ -29,6 +24,7 @@ import { setRecipeTags, upsertTags } from '../db/repos/tags.ts';
 import type { DB } from '../db/types.ts';
 import { AppError } from '../errors.ts';
 import type { AppDeps } from '../types.ts';
+import { mediaUrls, moveImageFilesToTrash } from './image-files.ts';
 
 /**
  * Recipe core (F-06 to F-08, F-10, F-11, F-17, F-29, NF-09, NF-19): every write is one
@@ -36,14 +32,6 @@ import type { AppDeps } from '../types.ts';
  * the commit (F-16, Kap. 4.6).
  */
 export type RecipeDeps = Pick<AppDeps, 'db' | 'paths' | 'log' | 'now'>;
-
-const IMAGE_VARIANTS = ['s', 'm', 'l'] as const;
-const FILE_KEY = /^[0-9a-f]{16}$/;
-
-/** Public URL of one image variant (Kap. 7.5, served by /media in M3). */
-export function mediaUrl(fileKey: string, variant: 's' | 'm' | 'l'): string {
-  return `/media/${fileKey}-${variant}.webp`;
-}
 
 /** prep + cook; one of them alone if the other is unset; null if both are unset (F-29). */
 export function totalMinutes(prep: number | null, cook: number | null): number | null {
@@ -101,11 +89,7 @@ export function buildRecipeDetail(db: DB, row: RecipeRow, viewerId: number | nul
   const detailImage: DetailImage | null = image
     ? {
         id: image.id,
-        urls: {
-          s: mediaUrl(image.fileKey, 's'),
-          m: mediaUrl(image.fileKey, 'm'),
-          l: mediaUrl(image.fileKey, 'l'),
-        },
+        urls: mediaUrls(image.fileKey),
         width: image.width,
         height: image.height,
       }
@@ -257,51 +241,4 @@ export function restoreRecipe(deps: RecipeDeps, id: number, profile: PersonRef):
     return findRecipe(db, id) ?? found;
   })();
   return buildRecipeDetail(db, row, profile.id);
-}
-
-/**
- * Moves the variant files of unreferenced images to images/.trash (F-16). Runs after the commit;
- * missing files are skipped, other failures only logged: the DB change already happened and the
- * weekly cleanup moves leftovers. The mtime is set to now so the 14-day retention starts here.
- * Returns the number of moved files.
- */
-export function moveImageFilesToTrash(
-  deps: Pick<AppDeps, 'paths' | 'log' | 'now'>,
-  fileKeys: readonly string[],
-): number {
-  if (fileKeys.length === 0) return 0;
-  const { paths, log } = deps;
-  const now = deps.now();
-  let moved = 0;
-  try {
-    fs.mkdirSync(paths.imagesTrash, { recursive: true });
-  } catch (err) {
-    log.warn('image trash folder not writable', { dir: paths.imagesTrash, err });
-    return 0;
-  }
-  for (const key of fileKeys) {
-    if (!FILE_KEY.test(key)) {
-      log.warn('image file key skipped', { fileKey: key });
-      continue;
-    }
-    for (const variant of IMAGE_VARIANTS) {
-      const file = `${key}-${variant}.webp`;
-      const target = path.join(paths.imagesTrash, file);
-      try {
-        fs.renameSync(path.join(paths.images, file), target);
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT')
-          log.warn('image file move failed', { file, err });
-        continue;
-      }
-      moved++;
-      try {
-        fs.utimesSync(target, now, now);
-      } catch {
-        // The retention then counts from the upload time, which only shortens it.
-      }
-    }
-  }
-  if (moved > 0) log.info('image files moved to trash', { files: moved });
-  return moved;
 }

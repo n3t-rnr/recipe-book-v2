@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setMeta } from '../../server/db/repos/meta.ts';
 import type { Health } from '../../server/services/health.ts';
+import { runMaintenance } from '../../server/services/maintenance.ts';
 import type { AppDeps } from '../../server/types.ts';
 import { CLIENT_HEADERS, createTestContext, FAKE_NET_INFO, type TestContext } from '../helpers/app.ts';
 
@@ -32,6 +33,7 @@ function setup(overrides: Partial<AppDeps> = {}): TestContext {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   ctx?.cleanup();
   ctx = undefined;
 });
@@ -121,23 +123,63 @@ describe('GET /api/v1/health', () => {
     expect(body.status).toBe('ok');
   });
 
-  it('sums file sizes of db, images (incl. trash) and backups, caching the folder sums', async () => {
+  it('sums the db files and backups, caching the backups sum', async () => {
     const c = setup();
     const { paths } = c.deps;
     fs.writeFileSync(paths.db, Buffer.alloc(4096));
     fs.writeFileSync(`${paths.db}-wal`, Buffer.alloc(1000));
-    fs.writeFileSync(path.join(paths.images, 'aaaaaaaaaaaaaaaa-s.webp'), Buffer.alloc(300));
-    fs.writeFileSync(path.join(paths.images, 'aaaaaaaaaaaaaaaa-l.webp'), Buffer.alloc(700));
-    fs.writeFileSync(path.join(paths.imagesTrash, 'bbbbbbbbbbbbbbbb-l.webp'), Buffer.alloc(50));
     fs.writeFileSync(path.join(paths.backups, 'rezepte-2026-09-22.sqlite'), Buffer.alloc(2048));
 
     const first = await getHealth(c);
-    expect(first.bytes).toEqual({ db: 5096, images: 1050, backups: 2048 });
+    expect(first.bytes).toEqual({ db: 5096, images: 0, backups: 2048 });
 
-    // Within 30 s (the helper clock stands still) the folder sums come from the cache.
+    // Within 30 s (the helper clock stands still) the folder sum comes from the cache.
     fs.writeFileSync(path.join(paths.backups, 'manual-2026-09-23.sqlite'), Buffer.alloc(10));
     const second = await getHealth(c);
     expect(second.bytes.backups).toBe(2048);
+  });
+
+  it('takes bytes.images from the image rows plus the trash size of the last maintenance run (NF-05)', async () => {
+    const c = setup();
+    const { db, paths } = c.deps;
+    db.exec(`
+      INSERT INTO images(file_key, width, height, bytes_total) VALUES ('aaaaaaaaaaaaaaaa', 2048, 1365, 400000);
+      INSERT INTO images(file_key, width, height, bytes_total) VALUES ('cccccccccccccccc', 1200, 800, 250000);
+    `);
+    // The files in images/ are not read: their sizes are in the rows.
+    fs.writeFileSync(path.join(paths.images, 'aaaaaaaaaaaaaaaa-s.webp'), Buffer.alloc(300));
+    const trashFile = path.join(paths.imagesTrash, 'bbbbbbbbbbbbbbbb-l.webp');
+    fs.writeFileSync(trashFile, Buffer.alloc(50));
+    const recent = new Date('2026-09-23T09:00:00Z');
+    fs.utimesSync(trashFile, recent, recent);
+
+    // A request never lists or stats the image folders (15,000 files blocked it for about 1 s).
+    const calls = [vi.spyOn(fs, 'readdirSync'), vi.spyOn(fs, 'statSync'), vi.spyOn(fs, 'lstatSync')];
+    // images/.trash counts from the first maintenance run on (5 s after the start).
+    expect((await getHealth(c)).bytes.images).toBe(650_000);
+    const touched = calls.flatMap((spy) => spy.mock.calls.map((args) => String(args[0])));
+    expect(touched.filter((file) => file.startsWith(paths.images))).toEqual([]);
+    expect(touched).toContain(paths.backups);
+    vi.restoreAllMocks();
+
+    runMaintenance(c.deps);
+    expect((await getHealth(c)).bytes.images).toBe(650_050);
+
+    // The next run counts again: an expired file has left images/.trash.
+    fs.utimesSync(trashFile, new Date('2026-09-01T00:00:00Z'), new Date('2026-09-01T00:00:00Z'));
+    runMaintenance(c.deps);
+    expect(fs.existsSync(trashFile)).toBe(false);
+    expect((await getHealth(c)).bytes.images).toBe(650_000);
+  });
+
+  it('still answers when the image rows cannot be summed', async () => {
+    const c = setup();
+    c.deps.db.exec('DROP TABLE images');
+    const body = await getHealth(c);
+    expect(body.bytes.images).toBe(0);
+    expect(c.log.entries.some((e) => e.level === 'warn' && e.msg === 'health: image bytes unavailable')).toBe(
+      true,
+    );
   });
 
   it('recounts the folders once the cache is older than 30 s', async () => {

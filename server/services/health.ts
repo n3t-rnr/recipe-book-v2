@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { sumImageBytes } from '../db/repos/images.ts';
 import { getMeta } from '../db/repos/meta.ts';
 import { type Counts, getCounts } from '../db/repos/stats.ts';
 import { currentRevision } from '../middleware/revision.ts';
@@ -9,7 +10,7 @@ import type { AppDeps, RuntimeState } from '../types.ts';
 /** Below this, uploads are refused (NF-24) and health reports "degraded". */
 export const LOW_DISK_BYTES = 200 * 1024 * 1024;
 
-/** Directory sums are the only slow part of /health; 30 s is fresh enough for the status page. */
+/** The backups folder sum is the only folder walk left in /health; 30 s is fresh enough for the status page. */
 const DIR_SIZE_TTL_MS = 30_000;
 
 export type HealthStatus = 'ok' | 'degraded' | 'read-only';
@@ -35,7 +36,6 @@ export interface Health {
 
 interface DirSizes {
   at: number;
-  images: number;
   backups: number;
 }
 
@@ -47,6 +47,18 @@ export function invalidateDirSizes(paths: DataPaths): void {
   dirSizeCache.delete(paths);
 }
 
+// Bytes in images/.trash, as the hourly maintenance last counted them (same keying as above).
+const imageTrashBytes = new WeakMap<DataPaths, number>();
+
+/**
+ * Stores the size of images/.trash for /health. The hourly maintenance lists that folder anyway
+ * (services/image-cleanup.ts, purgeImageTrash), so /health never walks the image folders: with
+ * 15,000 files one stat per file blocked the event loop for about a second (NF-05).
+ */
+export function recordImageTrashBytes(paths: DataPaths, bytes: number): void {
+  imageTrashBytes.set(paths, bytes);
+}
+
 function fileBytes(file: string): number {
   try {
     return fs.statSync(file).size;
@@ -55,7 +67,7 @@ function fileBytes(file: string): number {
   }
 }
 
-/** Sum of the regular files directly inside dir; sub-folders are counted separately where needed. */
+/** Sum of the regular files directly inside dir (backups/: a few dozen files at most). */
 function sumFileBytes(dir: string): number {
   let entries: fs.Dirent[];
   try {
@@ -74,13 +86,25 @@ function dirSizes(paths: DataPaths, now: number): DirSizes {
   const cached = dirSizeCache.get(paths);
   // now >= cached.at guards against the wall clock jumping backwards.
   if (cached && now >= cached.at && now - cached.at < DIR_SIZE_TTL_MS) return cached;
-  const fresh: DirSizes = {
-    at: now,
-    images: sumFileBytes(paths.images) + sumFileBytes(paths.imagesTrash),
-    backups: sumFileBytes(paths.backups),
-  };
+  const fresh: DirSizes = { at: now, backups: sumFileBytes(paths.backups) };
   dirSizeCache.set(paths, fresh);
   return fresh;
+}
+
+/**
+ * bytes.images without touching images/: the variants of every images row (bytes_total, written at
+ * upload; the files never change) plus images/.trash as the last maintenance run counted it (0
+ * until the first run, 5 s after the start). Files without a row in images/ are not counted; the
+ * weekly sweep moves them to images/.trash.
+ */
+function imageBytes(deps: AppDeps): number {
+  const trash = imageTrashBytes.get(deps.paths) ?? 0;
+  try {
+    return sumImageBytes(deps.db) + trash;
+  } catch (err) {
+    deps.log.warn('health: image bytes unavailable', { err });
+    return trash;
+  }
 }
 
 function freeDiskBytes(dir: string): number | null {
@@ -106,7 +130,8 @@ function deriveStatus(
 
 /**
  * Snapshot for /api/v1/health. Must stay fast (NF-05: <= 200 ms even during image jobs or
- * backups), hence one COUNT statement, cached directory sums and no async work.
+ * backups), hence one COUNT statement, one SUM statement, a cached backups sum, the images/.trash
+ * size from the maintenance and no async work.
  */
 export function buildHealth(deps: AppDeps): Health {
   const { db, paths, state } = deps;
@@ -137,7 +162,7 @@ export function buildHealth(deps: AppDeps): Health {
     counts,
     bytes: {
       db: fileBytes(paths.db) + fileBytes(`${paths.db}-wal`),
-      images: sizes.images,
+      images: imageBytes(deps),
       backups: sizes.backups,
     },
     freeDiskBytes: free,

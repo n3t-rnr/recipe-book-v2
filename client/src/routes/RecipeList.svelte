@@ -78,8 +78,9 @@
         failure = errorMessage(err);
         phase = 'failed';
       } else if (!(err instanceof ApiError && err.code === 'NETWORK')) {
-        // Offline is explained by the banner; the last list stays visible (F-33).
-        toast.show(errorMessage(err));
+        // Offline is explained by the banner; the last list stays visible (F-33). A timeout offers
+        // "Erneut versuchen", which repeats this reload (NF-09, Kap. 6.6).
+        toast.error(err, () => reload(keep));
       }
     } finally {
       if (controller === own) {
@@ -131,23 +132,15 @@
     void tick().then(() => router.restoreScroll());
   });
 
-  /** The element whose scrolling moves the list: the list column at ≥ 1024 px, else the page. */
-  function scrollParent(el: HTMLElement): HTMLElement | null {
-    for (let node = el.parentElement; node; node = node.parentElement) {
-      const overflow = getComputedStyle(node).overflowY;
-      if (overflow === 'auto' || overflow === 'scroll') return node;
-    }
-    return null;
-  }
-
-  // Next page when the end of the list comes within 800 px. Observing again after every page fires
-  // once more when the end is still in reach (short pages).
+  // Next page when the end of the list comes within 800 px of what scrolls it: the list column (the
+  // section of AppShell) at ≥ 1024 px, else the page. Observing again after every page fires once more
+  // when the end is still in reach (short pages).
   $effect(() => {
     const el = sentinel;
     void items.length;
     if (!el) return;
     const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && void loadMore(), {
-      root: scrollParent(el),
+      root: el.closest('section'),
       rootMargin: '800px 0px',
     });
     io.observe(el);

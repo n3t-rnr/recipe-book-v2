@@ -205,14 +205,13 @@ class Router {
     };
   }
 
-  /** Screens call this after their data rendered, so a pending Back restores the position (F-34). */
-  restoreScroll(): void {
-    this.#tryRestore();
-  }
-
-  /** Scrolls areas to positions as soon as the content allows (layout switch when a tablet rotates). */
-  restorePositions(positions: Positions): void {
-    this.#startRestore(positions);
+  /**
+   * Screens call this after their data rendered, so a pending Back restores the position (F-34). With
+   * `positions`: scrolls areas there as soon as the content allows (layout switch when a tablet rotates).
+   */
+  restoreScroll(positions?: Positions): void {
+    if (positions) this.#startRestore(positions);
+    else this.#tryRestore();
   }
 
   #apply(url: string, kind: NavigationKind, options: NavigateOptions): void {
@@ -369,7 +368,7 @@ class Router {
 
   #startRestore(positions: Positions): void {
     this.#restore = { positions, until: performance.now() + RESTORE_WINDOW_MS };
-    void tick().then(() => this.#tryRestore());
+    void tick().then(this.#tryRestore);
   }
 
   /** Applies the pending positions; retries each frame while content is still loading. */
@@ -378,15 +377,11 @@ class Router {
     if (!pending) return;
     let done = true;
     for (const [area, value] of Object.entries(pending.positions) as Array<[ScrollArea, number]>) {
-      if (area === 'window') {
-        if (Math.abs(window.scrollY - value) > 1) window.scrollTo(0, value);
-        if (Math.abs(window.scrollY - value) > 1) done = false;
-      } else {
-        const el = this.#areas.get(area);
-        if (!el) continue;
-        if (Math.abs(el.scrollTop - value) > 1) el.scrollTop = value;
-        if (Math.abs(el.scrollTop - value) > 1) done = false;
-      }
+      // The page scrolls with <html> (standards mode, NF-17 browsers), the columns with their own element.
+      const el = area === 'window' ? document.documentElement : this.#areas.get(area);
+      if (!el) continue;
+      if (Math.abs(el.scrollTop - value) > 1) el.scrollTop = value;
+      if (Math.abs(el.scrollTop - value) > 1) done = false;
     }
     if (done || performance.now() > pending.until) this.#restore = null;
     else requestAnimationFrame(this.#tryRestore);

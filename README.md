@@ -2,7 +2,7 @@
 
 Eine leichtgewichtige Rezepte-App, die auf einem Windows-PC im lokalen Netz läuft und im Browser von Handy, Tablet und PC bedient wird. Alle Profile teilen sich die Rezepte, Bewertungen und Favoriten gehören je einem Profil.
 
-**Status:** Design freigegeben (M1), Fundament fertig (M0): Server, Datenbank, Qualitäts-Gate und eine technische Platzhalterseite laufen. Als Nächstes folgt M2 mit Profilen und Rezepten. Starten und Entwickeln: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
+**Status:** Design freigegeben (M1). Fundament (M0), Profile und Rezepte (M2) sowie Bilder (M3) sind umgesetzt. Als Nächstes folgt M4 mit Tags, Suche und Filtern. Starten und Entwickeln: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
 
 ## Funktionsumfang Release 1.0
 
@@ -25,6 +25,6 @@ Eine leichtgewichtige Rezepte-App, die auf einem Windows-PC im lokalen Netz läu
 
 ## Dokumente
 
-- [Planung und Anforderungskatalog](docs/ANFORDERUNGSKATALOG.md): Ziele, 74 Anforderungen mit Akzeptanzkriterien, Datenmodell, Architektur, UI-Konzept, API, Meilensteine, Betrieb, Risiken
+- [Planung und Anforderungskatalog](docs/ANFORDERUNGSKATALOG.md): Ziele, 75 Anforderungen mit Akzeptanzkriterien, Datenmodell, Architektur, UI-Konzept, API, Meilensteine, Betrieb, Risiken
 - [Design](docs/design/README.md): Design-Canvas und Farbpalette
 - [CLAUDE.md](CLAUDE.md): verbindliche Regeln für die Umsetzung

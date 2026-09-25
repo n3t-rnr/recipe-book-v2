@@ -23,8 +23,6 @@ export const de = {
     edit: 'Bearbeiten',
     cancel: 'Abbrechen',
     save: 'Speichern',
-    optional: 'optional',
-    required: 'Pflichtfeld',
   },
 
   nav: {

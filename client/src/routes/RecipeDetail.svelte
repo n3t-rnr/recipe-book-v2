@@ -1,17 +1,23 @@
 <script lang="ts">
   // Recipe detail /rezepte/:id (F-29, F-33, Kap. 6.3; artboards HandyDetail, TabletHochDetail, TabletQuer).
-  // Phone and tablet portrait: own page with the photo on top (back button, menu and, on tablets, edit on
-  // round surfaces), the content sheet overlapping it by 32 px and, on phones, a fixed "Bearbeiten" bar.
+  // Phone and tablet portrait: own page with the photo on top (back button, menu, on tablets edit, and the
+  // avatar for the profile switch, F-03, all on round surfaces), the content sheet overlapping it by 32 px
+  // and, on phones, a fixed "Bearbeiten" bar.
   // From 1024 px it fills the detail column next to the list with a toolbar instead.
   // Title and image come from the list data at once (F-29: ≤ 200 ms); the rest follows. The menu moves
   // the recipe to the trash without asking, with "Rückgängig" for 8 s (F-08). A recipe in the trash
   // shows who deleted it and "Wiederherstellen" (F-33); an unknown one "Rezept nicht gefunden".
+  // The photo is variant m; tapping it opens variant l full screen (F-29, NF-06). The Lightbox is part of
+  // this lazy chunk: it is only needed here, and a chunk of its own would cost a request when the photo is
+  // tapped. On the placeholder, "Foto hinzufügen" opens the editor at the photo (?foto=1).
   import { onMount, untrack } from 'svelte';
   import type { CardImage, DetailImage, RecipeDetail, RecipeResponse } from '../../../shared/types.ts';
+  import AvatarButton from '../components/AvatarButton.svelte';
   import Button from '../components/Button.svelte';
   import EmptyState from '../components/EmptyState.svelte';
   import Icon from '../components/Icon.svelte';
   import IconButton from '../components/IconButton.svelte';
+  import Lightbox from '../components/Lightbox.svelte';
   import RecipeMedia from '../components/RecipeMedia.svelte';
   import Sheet from '../components/Sheet.svelte';
   import DetailBody from '../components/screens/DetailBody.svelte';
@@ -46,7 +52,10 @@
   let view = $state.raw<View>({ kind: 'loading' });
   let menuOpen = $state(false);
   let busy = $state(false);
+  let zoomed = $state(false);
   let controller: AbortController | null = null;
+  /** false once the detail is left: a late answer (or a retry from the toast) must not navigate. */
+  let shown = true;
 
   const recipe = $derived(view.kind === 'ready' ? view.recipe : null);
   const title = $derived(recipe?.title ?? card?.title ?? '');
@@ -56,6 +65,7 @@
   const ratio = $derived(layout === 'phone' ? '390 / 360' : layout === 'tablet' ? '768 / 400' : '508 / 260');
   const showHero = $derived(view.kind === 'loading' || view.kind === 'ready');
   const editHref = paths.recipeEdit(recipeId);
+  const addPhoto = { href: `${editHref}?foto=1` };
 
   async function load(): Promise<void> {
     controller?.abort();
@@ -88,6 +98,7 @@
       if (view.kind !== 'ready') void load();
     });
     return () => {
+      shown = false;
       off();
       controller?.abort();
     };
@@ -128,11 +139,12 @@
         },
       });
       await closed;
+      if (!shown) return;
       if (breakpoints.wide) router.navigate(paths.recipes(), { replace: true });
       else router.back(paths.recipes());
     } catch (err) {
       if (err instanceof ApiError && err.code === 'IN_TRASH') void load();
-      else toast.show(errorMessage(err));
+      else toast.error(err, moveToTrash);
     } finally {
       busy = false;
     }
@@ -146,12 +158,20 @@
       view = { kind: 'ready', recipe: res.recipe };
       toast.show(dl.detail.restored);
     } catch (err) {
-      toast.show(errorMessage(err));
+      // The server restores idempotently: a retry after a lost answer gets the recipe as well.
+      toast.error(err, restore);
     } finally {
       busy = false;
     }
   }
 </script>
+
+{#snippet zoom()}
+  {#if recipe?.image}
+    <button type="button" class="zoom" aria-label={dl.detail.zoom} aria-haspopup="dialog" onclick={() => (zoomed = true)}
+    ></button>
+  {/if}
+{/snippet}
 
 <article class={['detail', layout, { ready: recipe !== null }]} aria-busy={view.kind === 'loading'}>
   {#if showHero}
@@ -176,8 +196,8 @@
         <div class="overlay start">
           <IconButton variant="overlay" icon="back" label={dl.detail.backToList} onclick={back} />
         </div>
-        {#if recipe}
-          <div class="overlay end">
+        <div class="overlay end">
+          {#if recipe}
             <IconButton
               variant="overlay"
               icon="dotsH"
@@ -188,8 +208,10 @@
             {#if layout === 'tablet'}
               <IconButton variant="overlay" icon="pencil" label={de.common.edit} href={editHref} />
             {/if}
-          </div>
-        {/if}
+          {/if}
+          <!-- Profile switch from the detail too (F-03; owner decision 2026-09-25, not on the artboard). -->
+          <span class="plate"><AvatarButton /></span>
+        </div>
         {#if recipe || card}
           <RecipeMedia
             {image}
@@ -197,11 +219,11 @@
             {title}
             use="detail"
             {ratio}
-            sizes="100vw"
             eager
             alt={image ? de.recipe.photo(title) : ''}
-            addPhoto={recipe && !image ? { href: editHref } : undefined}
+            addPhoto={recipe && !image ? addPhoto : undefined}
           />
+          {@render zoom()}
         {:else}
           <div class="media-skeleton" style:aspect-ratio={ratio}></div>
         {/if}
@@ -211,18 +233,20 @@
     <div class="content">
       {#if layout === 'wide'}
         {#if recipe || card}
-          <RecipeMedia
-            {image}
-            recipeId={recipeId}
-            {title}
-            use="detail"
-            {ratio}
-            radius={24}
-            sizes="(min-width: 1280px) calc(100vw - 516px), 508px"
-            eager
-            alt={image ? de.recipe.photo(title) : ''}
-            addPhoto={recipe && !image ? { href: editHref } : undefined}
-          />
+          <div class="photo">
+            <RecipeMedia
+              {image}
+              recipeId={recipeId}
+              {title}
+              use="detail"
+              {ratio}
+              radius={24}
+              eager
+              alt={image ? de.recipe.photo(title) : ''}
+              addPhoto={recipe && !image ? addPhoto : undefined}
+            />
+            {@render zoom()}
+          </div>
         {:else}
           <div class="media-skeleton" style:aspect-ratio={ratio}></div>
         {/if}
@@ -262,7 +286,10 @@
     </div>
   {:else}
     {#if layout !== 'wide'}
-      <div class="plain-head"><IconButton icon="back" label={dl.detail.backToList} onclick={back} /></div>
+      <div class="plain-head">
+        <IconButton icon="back" label={dl.detail.backToList} onclick={back} />
+        <AvatarButton />
+      </div>
     {/if}
     <div class="state">
       {#if view.kind === 'trash'}
@@ -302,6 +329,10 @@
   </div>
 {/if}
 
+{#if zoomed && recipe?.image}
+  <Lightbox image={recipe.image} alt={title} onclose={() => (zoomed = false)} />
+{/if}
+
 {#if menuOpen}
   <Sheet title={de.common.moreActions} onclose={() => (menuOpen = false)}>
     <ul class="menu">
@@ -321,6 +352,20 @@
     --add-photo-bottom: 52px;
   }
 
+  /* The whole photo opens the full-screen view; the overlay buttons and the content sheet lie above. */
+  .photo {
+    position: relative;
+  }
+
+  .zoom {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    outline-offset: -4px;
+  }
+
   /* z-index: the photo follows in the DOM and would otherwise paint over the buttons. */
   .overlay {
     position: absolute;
@@ -336,6 +381,17 @@
 
   .overlay.end {
     right: 12px;
+  }
+
+  /* Avatar on the photo: same round plate as the overlay buttons (NF-13). */
+  .plate {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--color-overlay-border);
+    border-radius: 50%;
+    background: var(--color-overlay);
   }
 
   .tablet .overlay {
@@ -467,6 +523,7 @@
   .plain-head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     min-height: calc(64px + var(--safe-top));
     padding: var(--safe-top) 12px 0 8px;
   }

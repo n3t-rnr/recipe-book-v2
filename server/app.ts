@@ -7,6 +7,8 @@ import { profileContext } from './middleware/profile.ts';
 import { requestContext } from './middleware/request-context.ts';
 import { revision } from './middleware/revision.ts';
 import { securityHeaders } from './middleware/security-headers.ts';
+import { imagesRoutes } from './routes/images.ts';
+import { registerMedia } from './routes/media.ts';
 import { opsRoutes } from './routes/ops.ts';
 import { profilesRoutes } from './routes/profiles.ts';
 import { recipeListRoutes } from './routes/recipe-list.ts';
@@ -32,10 +34,12 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route('/api/v1', profilesRoutes(deps));
   app.route('/api/v1', recipeListRoutes(deps));
   app.route('/api/v1', recipesRoutes(deps));
+  app.route('/api/v1', imagesRoutes(deps));
   app.all('/api/*', () => {
     throw new AppError('NOT_FOUND', 'Unbekannter API-Pfad');
   });
 
+  registerMedia(app, deps);
   registerStatic(app, deps);
 
   app.onError(errorHandler(deps));

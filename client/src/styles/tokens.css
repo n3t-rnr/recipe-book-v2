@@ -82,7 +82,8 @@
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --font-body: "Figtree", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
 
-  /* Type scale from the token sheet: size / weight (display = Bricolage, others = Figtree) */
+  /* Type scale from the token sheet: size / weight (display = Bricolage, others = Figtree). Values no
+     rule reads stay as comments: they document the sheet without costing CSS bytes (NF-01). */
   --text-screen: 2.25rem; /* 36px, screen title */
   --text-screen-weight: 800;
   --text-section: 1.625rem; /* 26px, section heading */
@@ -91,18 +92,14 @@
   --text-card-weight: 700;
   --text-step-head: 1.25rem; /* 20px, step heading */
   --text-step-head-weight: 800;
-  --text-step: 1.125rem; /* 18px, preparation steps */
-  --text-step-weight: 400;
+  --text-step: 1.125rem; /* 18px, preparation steps; weight 400 */
   --text-body: 1.0625rem; /* 17px, body text */
   --text-body-weight: 400;
-  --text-label: 0.9375rem; /* 15px, labels */
-  --text-label-weight: 700;
-  --text-meta: 0.875rem; /* 14px, meta line */
-  --text-meta-weight: 600;
+  --text-label: 0.9375rem; /* 15px, labels; weight 700 */
+  --text-meta: 0.875rem; /* 14px, meta line; weight 600 */
   --text-nav: 0.75rem; /* 12px, navigation label */
   --text-nav-weight: 700;
-  --leading-body: 1.5;
-  --leading-heading: 1.3;
+  --leading-body: 1.5; /* headings: 1.3 */
 
   /* ---- Radii ---- */
   --radius-chip: 22px; /* chip, pill, search field */
@@ -112,18 +109,10 @@
   --radius-input: 12px;
   --radius-sheet: 28px; /* sheet, dialog */
 
-  /* ---- Spacing grid and tap targets ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px; /* page margin on phones */
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px; /* sheet padding on the canvas */
-  --page-margin: 20px;
-  --tap-min: 44px;
-  --tap-kitchen: 48px; /* heart, stars, save */
+  /* ---- Spacing grid and tap targets ----
+     Components take spacing and target sizes in px from the artboards, so the sheet's values stay as
+     comments here (NF-01): grid 4, 8, 12, 16, 20 (page margin on phones), 24, 32, 40 px (sheet padding on
+     the canvas); tap targets ≥ 44 px, kitchen actions (heart, stars, save) ≥ 48 px (NF-07). */
   --fab-size: 60px;
 }
 

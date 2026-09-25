@@ -8,7 +8,15 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** Raw image upload (F-14, M3): own content types and its own, larger size limit in the route. */
 const UPLOAD_PATH = `${API_BASE}/images`;
-const UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream']);
+// HEIC/HEIF pass the guard so the upload route can answer 415 with the conversion hint (F-14 AK).
+const UPLOAD_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/octet-stream',
+]);
 
 function mediaType(header: string | undefined): string {
   return (header ?? '').split(';', 1)[0]?.trim().toLowerCase() ?? '';

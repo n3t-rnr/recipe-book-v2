@@ -8,6 +8,7 @@ import { ensureFtsConsistent, reindexAll } from './db/fts.ts';
 import { MIGRATIONS_DIR, runMigrations } from './db/migrate.ts';
 import { createFileLogger, type Logger } from './log.ts';
 import { dataPaths, ensureDataDirs } from './paths.ts';
+import { runImageStartup } from './services/image-cleanup.ts';
 import { startMaintenance } from './services/maintenance.ts';
 import { getNetInfo, qrAscii } from './services/net-info.ts';
 import { probeIPv4Port } from './services/port.ts';
@@ -111,6 +112,9 @@ async function main(): Promise<void> {
     netInfo: () => getNetInfo(config),
     now: () => new Date(),
   };
+  // Before the port opens (F-16, Kap. 10.9): referenced image files come back from images/.trash,
+  // e.g. after restoring a database backup; files without a row move there. Skipped when read-only.
+  runImageStartup(deps);
   const app = createApp(deps);
 
   // @hono/node-server returns a union incl. HTTP/2 servers; without TLS options it is always http.Server.

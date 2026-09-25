@@ -5,7 +5,7 @@ import type { DB } from '../types.ts';
 import { setMeta } from './meta.ts';
 
 /**
- * SQL for recipes, their ingredients, steps and image assignment (Kap. 4.3, 7.4).
+ * SQL for recipes, their ingredients and steps (Kap. 4.3, 7.4); image rows live in images.ts.
  * Write functions never open a transaction: the recipe service wraps every composite write,
  * including FTS maintenance, in one db.transaction() (NF-19).
  */
@@ -262,44 +262,6 @@ export function isFavorite(db: DB, recipeId: number, profileId: number): boolean
       profileId,
     ) !== undefined
   );
-}
-
-export interface ImageRow {
-  id: number;
-  recipeId: number | null;
-  fileKey: string;
-  width: number;
-  height: number;
-}
-
-const IMAGE_COLUMNS = 'id, recipe_id AS recipeId, file_key AS fileKey, width, height';
-
-export function findImage(db: DB, imageId: number): ImageRow | null {
-  const row = prepared(db, `SELECT ${IMAGE_COLUMNS} FROM images WHERE id = ?`).get(imageId) as
-    | ImageRow
-    | undefined;
-  return row ?? null;
-}
-
-export function findRecipeImage(db: DB, recipeId: number): ImageRow | null {
-  const row = prepared(db, `SELECT ${IMAGE_COLUMNS} FROM images WHERE recipe_id = ?`).get(recipeId) as
-    | ImageRow
-    | undefined;
-  return row ?? null;
-}
-
-/**
- * Deletes the image rows of a recipe except keepImageId (null = delete all) and returns their
- * file keys, so the caller can move the files to images/.trash after the commit (F-16).
- */
-export function detachRecipeImages(db: DB, recipeId: number, keepImageId: number | null): string[] {
-  return prepared(db, 'DELETE FROM images WHERE recipe_id = ? AND id IS NOT ? RETURNING file_key')
-    .pluck()
-    .all(recipeId, keepImageId) as string[];
-}
-
-export function assignImage(db: DB, imageId: number, recipeId: number): void {
-  prepared(db, 'UPDATE images SET recipe_id = ? WHERE id = ?').run(recipeId, imageId);
 }
 
 /** Moves the recipe to the trash (F-08). The FTS row stays; searches filter on deleted_at (Kap. 4.3). */

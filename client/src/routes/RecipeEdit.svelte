@@ -1,10 +1,13 @@
 <script lang="ts">
   // Recipe editor for /rezepte/neu and /rezepte/:id/bearbeiten (Kap. 6.3 "Editor", artboards
-  // HandyEditor and TabletQuerEditor). One continuous form: Titel · Tags · Zutaten · Zubereitung ·
+  // HandyEditor and TabletQuerEditor). One continuous form: Foto · Titel · Tags · Zutaten · Zubereitung ·
   // Weitere Angaben; one column below 1024 px (tablet portrait centered, at most 720 px wide), two
   // columns from 1024 px as in the tablet artboard: at 600 px the right column would be 228 px narrow
-  // and every ingredient row three lines high. The photo section follows in M3, the text mode (F-12)
-  // and the similar-recipe hint (F-45) in M5, tag autocomplete (F-18) in M4.
+  // and every ingredient row three lines high. The text mode (F-12) and the similar-recipe hint (F-45)
+  // follow in M5, tag autocomplete (F-18) in M4.
+  // Photo (F-14): ImagePicker uploads right after the choice; saving waits for a running upload, a
+  // failed one does not block it. A restored draft's photo is checked on the server (F-09 AK); ?foto=1
+  // (the detail's "Foto hinzufügen") focuses "Foto aufnehmen".
   // Save: POST with one createKey per editor session, or PUT with the loaded version (NF-09, F-07);
   // a createKey that already created the recipe continues as PUT (createOutcome in lib/editor.ts);
   // 409 opens the conflict dialog, 410 offers "wiederherstellen und speichern". Drafts every 2 s in
@@ -17,6 +20,7 @@
   import ConflictMark from '../components/editor/ConflictMark.svelte';
   import FieldError from '../components/editor/FieldError.svelte';
   import FieldLabel from '../components/editor/FieldLabel.svelte';
+  import ImagePicker from '../components/editor/ImagePicker.svelte';
   import IngredientEditor from '../components/editor/IngredientEditor.svelte';
   import MoreFields from '../components/editor/MoreFields.svelte';
   import SaveBar from '../components/editor/SaveBar.svelte';
@@ -27,7 +31,7 @@
   import { deEditor } from '../i18n/de-editor.ts';
   import { ApiError, errorMessage, get, post, put } from '../lib/api.ts';
   import { breakpoints } from '../lib/breakpoints.svelte.ts';
-  import { browserStorage, draftKey, pruneDrafts, readDraft, removeDraft, writeDraft } from '../lib/draft.ts';
+  import { browserStorage, draftKey, draftSync, pruneDrafts, readDraft, removeDraft } from '../lib/draft.ts';
   import {
     addTags,
     applyField,
@@ -42,6 +46,7 @@
     type FieldMap,
     type FieldName,
     fieldPreview,
+    firstError,
     formFromDetail,
     formKey,
     mapDetails,
@@ -51,9 +56,11 @@
     type SaveContext,
     draftWhen,
     validationDetails,
+    verifyDraftImage,
   } from '../lib/editor.ts';
   import { router } from '../lib/router.svelte.ts';
   import { paths } from '../lib/routes.ts';
+  import { imageState } from '../lib/upload.ts';
   import { toast } from '../state/toast.svelte.ts';
 
   interface Props {
@@ -68,8 +75,11 @@
   const uid = $props.id();
   const storage = browserStorage();
   const storageKey = draftKey(recipeId);
+  const drafts = draftSync(storage, storageKey);
   const fallback = recipeId === null ? paths.recipes() : paths.recipe(recipeId);
   const AUTOSAVE_MS = 2000;
+  /** Opened from the detail's "Foto hinzufügen": start at the photo instead of the title. */
+  const photoFirst = untrack(() => router.query.get('foto') === '1');
   /** Fields under "Weitere Angaben"; the section opens when one of them has a value, error or offer. */
   const MORE_FIELDS = ['servings', 'servingsUnit', 'prepMinutes', 'cookMinutes', 'source', 'description'] as const;
   const isMoreField = (field: string): boolean => (MORE_FIELDS as readonly string[]).includes(field);
@@ -113,15 +123,24 @@
   let dialogBusy = $state(false);
   let restoring = $state(false);
   let announcement = $state('');
+  /** Hint in the photo section: expired draft photo (F-09 AK), file over 20 MB. */
+  let imageNotice = $state<string | null>(null);
+  /** A chosen photo is still uploading or waits for "Erneut hochladen": leaving would lose it (F-14). */
+  let photoUnsaved = $state(false);
 
   let formEl: HTMLFormElement | undefined = $state();
   let titleEl: HTMLInputElement | undefined = $state();
+  let picker: ReturnType<typeof ImagePicker> | undefined = $state();
 
   let leaving = false;
   let destroyed = false;
   let draftActive = false;
-  let lastDraftJson: string | null = null;
+  /** A mouse button or finger is down (onTitleBlur). */
+  let pressing = false;
+  let hintAfterPress = false;
   let guardRelease: (() => void) | null = null;
+  /** The last closed dialog's history step (closeDialog). */
+  let dialogClosed = Promise.resolve();
   let undoToast: number | null = null;
   let failToast: number | null = null;
 
@@ -130,9 +149,13 @@
   const columns = $derived(breakpoints.wide);
   const baselineKey = $derived(formKey(baseline));
   const dirty = $derived(phase === 'ready' && (offers.length > 0 || formKey(form) !== baselineKey));
+  /** Leaving asks first (F-09, F-35): unsaved changes, or a photo not in the form yet. No draft for the latter. */
+  const mustAsk = $derived(dirty || photoUnsaved);
   const canSave = $derived(phase === 'ready' && form.title.trim() !== '');
+  /** Changes besides the photo: a photo taken first (scenarios S2, S3) does not flag the title yet. */
+  const textDirty = $derived(dirty && formKey({ ...form, image: baseline.image }) !== baselineKey);
   const titleError = $derived(
-    errors.title ?? (form.title.trim() === '' && (titleTouched || dirty) ? deEditor.title.missing : undefined),
+    errors.title ?? (form.title.trim() === '' && (titleTouched || textDirty) ? deEditor.title.missing : undefined),
   );
   const heading = $derived(recipeId === null ? deEditor.titleNew : deEditor.titleEdit);
 
@@ -242,8 +265,20 @@
     moreOpen = hasMoreValues(form) || offers.some(isMoreField);
     dialog = null;
     draftActive = true;
-    lastDraftJson = null;
+    // The stored draft is the restored one: autosave rewrites it, or removes it once nothing is changed.
+    drafts.adopt();
     focusTitle();
+    void checkDraftImage(recipeId === null ? null : baseline);
+  }
+
+  /**
+   * F-09 AK: the draft's photo may have expired on the server; then it leaves the form with a hint, and
+   * the stored draft at once, so a draft that held nothing else is not offered again.
+   */
+  async function checkDraftImage(base: EditorForm | null): Promise<void> {
+    if (!(await verifyDraftImage(form, base, (id) => imageState(id)))) return;
+    imageNotice = deEditor.photo.gone;
+    autosave();
   }
 
   function dropDraft(): void {
@@ -253,19 +288,36 @@
     focusTitle();
   }
 
+  /**
+   * Leaving the empty title shows its hint, which pushes everything below it down (one column below
+   * 1024 px). A press elsewhere takes the focus before its click, so a hint shown at once would move the
+   * pressed button away and the click would miss it (b4). The hint waits until the pointer is up and the
+   * current event with its click is through.
+   */
+  function onTitleBlur(): void {
+    if (pressing) hintAfterPress = true;
+    else setTimeout(() => (titleTouched = true));
+  }
+
+  function onPointer(event: Event): void {
+    pressing = event.type === 'pointerdown';
+    if (!pressing && hintAfterPress) {
+      hintAfterPress = false;
+      onTitleBlur();
+    }
+  }
+
+  /** Focus at the start: the title of a new recipe, or "Foto aufnehmen" after "Foto hinzufügen". */
   function focusTitle(): void {
-    if (recipeId !== null) return;
-    void tick().then(() => requestAnimationFrame(() => titleEl?.focus()));
+    if (!photoFirst && recipeId !== null) return;
+    void tick().then(() => requestAnimationFrame(() => (photoFirst ? picker?.focus() : titleEl?.focus())));
   }
 
   /** Writes the draft when something changed; removes it when the form is back to its start. */
   function autosave(): void {
     if (!draftActive || leaving || phase !== 'ready') return;
     if (!dirty) {
-      if (lastDraftJson !== null) {
-        removeDraft(storage, storageKey);
-        lastDraftJson = null;
-      }
+      drafts.drop();
       return;
     }
     const payload: EditorDraft = {
@@ -277,9 +329,7 @@
       createKey: asNew || recipeId === null ? createKey : null,
       conflict: mine && offers.length > 0 ? { mine, fields: [...offers] } : null,
     };
-    const json = JSON.stringify(payload);
-    if (json === lastDraftJson) return;
-    if (writeDraft(storage, storageKey, payload, new Date())) lastDraftJson = json;
+    drafts.keep(payload, new Date());
   }
 
   // ---------------------------------------------------------------- feedback helpers
@@ -310,7 +360,7 @@
     if (next.form) toast.show(next.form);
     if (Object.keys(next).some(isMoreField)) moreOpen = true;
     await tick();
-    const target = formEl?.querySelector<HTMLElement>('[aria-invalid="true"], .field-error');
+    const target = firstError(formEl?.querySelectorAll<HTMLElement>('[aria-invalid="true"], .field-error') ?? []);
     if (!target) return;
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
@@ -343,6 +393,17 @@
 
   async function save(options: { force?: boolean } = {}): Promise<void> {
     if (saving || !canSave) return;
+    const upload = picker?.pending();
+    if (upload) {
+      // F-14: saving waits for a running upload; a failed one leaves the photo as it was.
+      saving = true;
+      announce(deEditor.photo.waiting);
+      await upload;
+      saving = false;
+      if (destroyed || leaving) return;
+      await save(options);
+      return;
+    }
     commitPendingTag();
     if (failToast !== null) toast.dismiss(failToast);
     failToast = null;
@@ -399,9 +460,15 @@
     }
     switch (err.code) {
       case 'VALIDATION': {
-        const mapped = mapDetails(validationDetails(err.details), lastMap);
-        if (Object.keys(mapped).length === 0) toast.show(err.message);
-        else await showErrors(mapped);
+        const { image: imageGone, ...mapped } = mapDetails(validationDetails(err.details), lastMap);
+        if (imageGone !== undefined) {
+          // Unknown or taken imageId (Kap. 4.6): the photo is gone; drop it and say so at the picker.
+          form.image = null;
+          imageNotice = deEditor.photo.gone;
+        }
+        if (Object.keys(mapped).length > 0) await showErrors(mapped);
+        else if (imageGone === undefined) toast.show(err.message);
+        else picker?.focus();
         return;
       }
       case 'VERSION_CONFLICT': {
@@ -458,7 +525,7 @@
     liveValidation = false;
     if (changed.some(isMoreField)) moreOpen = true;
     dialog = null;
-    lastDraftJson = null;
+    drafts.adopt();
     autosave();
     toast.show(deEditor.conflict.reloaded);
   }
@@ -470,8 +537,10 @@
     if (offers.length === 0) mine = null;
   }
 
+  // A dialog action that saves closes the dialog through closeDialog: finishSaved then waits for the
+  // dialog's history step before it releases the back guard (two quick steps merge in WebKit, d4).
   function saveMine(): void {
-    dialog = null;
+    void closeDialog();
     void save({ force: true });
   }
 
@@ -487,14 +556,14 @@
       return;
     }
     dialogBusy = false;
-    dialog = null;
+    void closeDialog();
     await save();
   }
 
   function saveAsNew(): void {
     asNew = true;
     createKey = newCreateKey();
-    dialog = null;
+    void closeDialog();
     void save();
   }
 
@@ -594,12 +663,17 @@
     });
   }
 
-  async function closeDialog(): Promise<void> {
-    if (!dialog) return;
-    const pending = isOverlayEntry(history.state);
-    dialog = null;
-    await tick();
-    if (pending) await nextPopstate();
+  /**
+   * Closes the dialog; resolves once its history entry is gone. Without an open dialog: resolves with the
+   * last close, so the guard's release never overlaps a dialog's step still under way.
+   */
+  function closeDialog(): Promise<void> {
+    if (dialog) {
+      const pending = isOverlayEntry(history.state);
+      dialog = null;
+      dialogClosed = tick().then(() => (pending ? nextPopstate() : undefined));
+    }
+    return dialogClosed;
   }
 
   async function releaseGuard(): Promise<void> {
@@ -636,14 +710,14 @@
       errors = {};
       liveValidation = false;
     }
-    lastDraftJson = null;
+    drafts.adopt();
     leaving = false;
     draftActive = true;
   }
 
   /** Abbrechen and the back button: ask only when something would be lost. */
   function requestLeave(): void {
-    if (dirty) dialog = { kind: 'discard', then: { kind: 'back' } };
+    if (mustAsk) dialog = { kind: 'discard', then: { kind: 'back' } };
     else void leave({ kind: 'back' }, false);
   }
 
@@ -657,14 +731,14 @@
     const path = router.route.path;
     queueMicrotask(() => {
       if (leaving || router.route.path !== path) return;
-      if (dirty) dialog = { kind: 'discard', then: { kind: 'back' } };
+      if (mustAsk) dialog = { kind: 'discard', then: { kind: 'back' } };
       else void leave({ kind: 'back' }, false);
     });
   }
 
-  // While there are unsaved changes, a history entry catches the back gesture (F-09 AK).
+  // While there are unsaved changes or a photo upload, a history entry catches the back gesture (F-09 AK).
   $effect(() => {
-    const needed = dirty && dialog?.kind !== 'discard';
+    const needed = mustAsk && dialog?.kind !== 'discard';
     untrack(() => {
       if (needed && !guardRelease && !leaving) guardRelease = router.pushOverlay(onGuardClosed);
     });
@@ -672,7 +746,7 @@
 
   /** Links elsewhere (navigation rail, profile sheet) ask first, too. */
   function interceptLinks(event: MouseEvent): void {
-    if (!dirty || leaving || event.defaultPrevented || event.button !== 0) return;
+    if (!mustAsk || leaving || event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const anchor = event.target instanceof Element ? event.target.closest('a') : null;
     if (!anchor?.hasAttribute('href') || (anchor.target !== '' && anchor.target !== '_self')) return;
@@ -698,7 +772,9 @@
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || event.shiftKey || event.altKey || !formEl) return;
     event.preventDefault();
-    const fields = [...formEl.querySelectorAll<HTMLElement>('input, textarea')].filter((el) => !el.closest('dialog'));
+    const fields = [...formEl.querySelectorAll<HTMLElement>('input:not([type="file"]), textarea')].filter(
+      (el) => !el.closest('dialog'),
+    );
     const next = fields[fields.indexOf(target) + 1];
     if (next) next.focus();
     else target.blur();
@@ -715,12 +791,15 @@
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', autosave);
     document.addEventListener('click', interceptLinks, true);
+    const pointerEvents = ['pointerdown', 'pointerup', 'pointercancel'];
+    for (const type of pointerEvents) window.addEventListener(type, onPointer, true);
     return () => {
       destroyed = true;
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', autosave);
       document.removeEventListener('click', interceptLinks, true);
+      for (const type of pointerEvents) window.removeEventListener(type, onPointer, true);
       // Left without a decision (navigation elsewhere): the draft keeps the input (F-09).
       autosave();
       guardRelease?.();
@@ -734,6 +813,21 @@
   {#if mine && offers.includes(field)}
     <ConflictMark preview={fieldPreview(mine, field)} ontakeover={() => takeOver(field)} />
   {/if}
+{/snippet}
+
+{#snippet photoField()}
+  <div class="field">
+    <ImagePicker
+      bind:this={picker}
+      bind:image={form.image}
+      bind:notice={imageNotice}
+      bind:unsaved={photoUnsaved}
+      compact={!phone}
+      onundo={notifyUndo}
+      {announce}
+    />
+    {@render offer('image')}
+  </div>
 {/snippet}
 
 {#snippet titleField()}
@@ -751,7 +845,7 @@
       aria-required="true"
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? `${uid}-title-error` : undefined}
-      onblur={() => (titleTouched = true)}
+      onblur={onTitleBlur}
     />
     <FieldError id="{uid}-title-error" message={titleError} />
     {@render offer('title')}
@@ -863,23 +957,19 @@
       onkeydown={onFormKeydown}
     >
       <span id="{uid}-form-label" class="visually-hidden">{heading}</span>
-      {#if !columns}
+      <!-- One DOM for both layouts: below 1024 px the columns dissolve (display: contents), so rotating a
+           tablet keeps the fields, their focus and a running photo upload; only "Weitere Angaben" moves. -->
+      <div class="col left">
+        {@render photoField()}
         {@render titleField()}
         {@render tagsField()}
+        {#if columns}{@render moreSection()}{/if}
+      </div>
+      <div class="col right">
         {@render ingredientsSection()}
         {@render stepsSection()}
-        {@render moreSection()}
-      {:else}
-        <div class="col left">
-          {@render titleField()}
-          {@render tagsField()}
-          {@render moreSection()}
-        </div>
-        <div class="col right">
-          {@render ingredientsSection()}
-          {@render stepsSection()}
-        </div>
-      {/if}
+        {#if !columns}{@render moreSection()}{/if}
+      </div>
     </form>
     <SaveBar {saving} {canSave} compact={!phone} onsave={() => save()} oncancel={requestLeave} />
   {/if}
@@ -978,6 +1068,10 @@
 
   .col.right {
     gap: 24px;
+  }
+
+  .editor:not(.columns) .col {
+    display: contents;
   }
 
   .state {

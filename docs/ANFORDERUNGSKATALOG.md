@@ -4,7 +4,7 @@
 |---|---|
 | Projekt | recipe-book-v2 (github.com/n3t-rnr/recipe-book-v2) |
 | Stand | 23.09.2026, Entwurf zur Freigabe durch Sebastian (überarbeitet nach Review) |
-| Umfang | 74 Anforderungen: 45 funktional (F), 29 nicht-funktional (NF); 57 Muss, 13 Soll, 4 Kann |
+| Umfang | 75 Anforderungen: 46 funktional (F), 29 nicht-funktional (NF); 57 Muss, 14 Soll, 4 Kann |
 | Stack (Kurzform) | Svelte 5 als SPA + Vite 8.3 · Node.js 24 LTS + Hono 4 · SQLite über better-sqlite3 mit FTS5 · sharp für Bilder · ein Prozess, ein Port, ein Datenordner · Windows-Dienst über WinSW |
 | Aufwand | 16–21 Personentage in 8 Meilensteinen (M0–M7), zuzüglich Wartezeit auf Design-Entscheidungen |
 
@@ -68,7 +68,7 @@ Nicht in Release 1.0: Zugriff aus dem Internet, Nutzerkonten mit Passwort oder R
 | Finden | Bekanntes Rezept unter 200 Rezepten über Suche oder Tag-Chips | ≤ 10 s, ≤ 3 Fingertipps |
 | Profilwechsel | Von jeder Hauptansicht | ≤ 2 Fingertipps |
 | Neues Gerät verbinden | QR-Code scannen bis Profilwahl | ≤ 1 min |
-| Leichtgewicht | Initial-JS (gzip) / RAM des Servers im Leerlauf | ≤ 35 KB / ≤ 80 MB |
+| Leichtgewicht | Initial-JS (gzip) / RAM des Servers im Leerlauf | ≤ 35 KB / ≤ 100 MB (ADR 0003) |
 | Zuverlässigkeit | PC-Neustart ohne Anmeldung; Wiederherstellung aus Backup | App erreichbar; Wiederherstellung einmal real erfolgreich |
 | Qualität | Muss-Akzeptanzkriterien auf 4 Geräteklassen (Android-Handy, iPhone, iPad, Windows-PC) | 100 % erfüllt |
 | Nutzung (Beobachtung, kein Abnahmekriterium) | Vier Wochen nach Abnahme | ≥ 30 Rezepte, von ≥ 2 Profilen bewertet |
@@ -106,7 +106,7 @@ Rahmen: 2–6 Profile, 50–1.000 Rezepte, 1–3 gleichzeitig genutzte Geräte, 
 
 ## 3. Anforderungskatalog
 
-Jede Anforderung hat eine ID, eine Priorität und ein oder mehrere Akzeptanzkriterien (AK), die ein Tester ohne Interpretationsspielraum prüfen kann. „API-Test“ heißt: automatisierter Test gegen die Hono-App mit `app.request()` und einer `:memory:`-Datenbank; sofern nicht anders genannt, setzt er `X-Rezepte-Client: 1`. „Injizierte Uhr“ heißt: Der Test ersetzt die Zeitquelle des Servers. Die IDs F-43 bis F-45 sind bei der Überarbeitung entstanden und stehen thematisch bei ihrer Gruppe. Wird eine Prüfung an mehreren Stellen gebraucht, steht sie nur bei einer ID; andere Stellen verweisen darauf.
+Jede Anforderung hat eine ID, eine Priorität und ein oder mehrere Akzeptanzkriterien (AK), die ein Tester ohne Interpretationsspielraum prüfen kann. „API-Test“ heißt: automatisierter Test gegen die Hono-App mit `app.request()` und einer `:memory:`-Datenbank; sofern nicht anders genannt, setzt er `X-Rezepte-Client: 1`. „Injizierte Uhr“ heißt: Der Test ersetzt die Zeitquelle des Servers. Die IDs F-43 bis F-45 sind bei der Überarbeitung entstanden, F-46 nach dem Nutzer-Review von M3 (24.09.2026); sie stehen thematisch bei ihrer Gruppe. Wird eine Prüfung an mehreren Stellen gebraucht, steht sie nur bei einer ID; andere Stellen verweisen darauf.
 
 ### 3.1 Funktionale Anforderungen
 
@@ -116,7 +116,7 @@ Jede Anforderung hat eine ID, eine Priorität und ein oder mehrere Akzeptanzkrit
 |---|---|---|---|
 | F-01 | Profil anlegen | Profil mit Namen (1–40 Zeichen, beliebiges Unicode inkl. Umlaute und Leerzeichen) und einer von 6 Avatarfarben (`--avatar-1` … `--avatar-6`, Kap. 6.7). Kein Passwort. | Muss |
 | F-02 | Profil wählen und auf dem Gerät merken | Beim ersten Öffnen erscheint die Profilwahl (Kacheln + „Neues Profil“); gibt es noch kein Profil, erscheint direkt das Namensfeld. Die Auswahl wird in `localStorage` gespeichert, spätere Aufrufe starten in der Rezeptliste. | Muss |
-| F-03 | Profil mit zwei Fingertipps wechseln | Die Avatar-Schaltfläche (Handy und Tablet hochkant oben rechts, sonst in der Navigationsleiste links) öffnet ein Sheet mit allen Profilen. Der Avatar zeigt die Initiale, bei gleichen Initialen zweier Profile zwei Buchstaben. | Muss |
+| F-03 | Profil mit zwei Fingertipps wechseln | Die Avatar-Schaltfläche (Handy und Tablet hochkant oben rechts, im Rezeptdetail über dem Foto; sonst in der Navigationsleiste links) öffnet ein Sheet mit allen Profilen. Der Avatar zeigt die Initiale, bei gleichen Initialen zweier Profile zwei Buchstaben. | Muss |
 | F-04 | Profil umbenennen und löschen | Name und Farbe sind änderbar. Beim Löschen verschwinden die Bewertungen und Favoriten des Profils; Rezepte bleiben erhalten. | Soll |
 | F-05 | Identität nur aus dem Profil-Header | Personenbezogene Schreibaktionen (Bewertung, Favorit, Autor beim Anlegen, Ändern oder Löschen) übernehmen das Profil ausschließlich aus `X-Profile-Id`. Der Server prüft bei jeder Anfrage mit diesem Header, ob das Profil existiert. Begründung: Fehler des Prototyps v1. | Muss |
 
@@ -226,7 +226,7 @@ Akzeptanzkriterien:
 | ID | Titel | Beschreibung | Priorität |
 |---|---|---|---|
 | F-14 | Bild aufnehmen oder auswählen | Ein Bild je Rezept. Der Editor zeigt zwei große Schaltflächen: „Foto aufnehmen“ (`<input type="file" accept="image/jpeg" capture="environment">`) und „Bild auswählen“ (`accept="image/jpeg,image/png,image/webp"`). Der Upload startet direkt nach der Auswahl, auch bei einem noch ungespeicherten Rezept. Speichern wartet auf einen laufenden Upload; ein gescheiterter Upload verhindert das Speichern nicht. Maximal 20 MiB (20.971.520 Bytes, `shared/constants.ts`). | Muss |
-| F-15 | Serverseitige Bildverarbeitung | sharp dreht nach EXIF, entfernt Metadaten und erzeugt drei WebP-Varianten, nie vergrößert. **Startwerte** (endgültig nach der Designentscheidung in M1, als Konstanten in `shared/constants.ts`): s = Kartenvariante im Kartenformat des Designs (Vorgabe 4:3) mit einer Breite ≥ 2× der breitesten Karte, Startwert 720×540 zugeschnitten (q72); m = 1200 px längste Kante (q78); l = 2048 px längste Kante (q80). Pipeline: das Original wird einmal mit Shrink-on-load zu l dekodiert, m und s entstehen aus dem l-Puffer. Konfiguration: `sharp.cache(false)`, `sharp.concurrency(2)`, `limitInputPixels` = 60 MP. Das Original wird verworfen. Die Dateien werden atomar geschrieben (erst in `tmp/`, dann umbenannt). | Muss |
+| F-15 | Serverseitige Bildverarbeitung | sharp dreht nach EXIF, entfernt Metadaten und erzeugt drei WebP-Varianten, nie vergrößert. **Startwerte** (endgültig nach der Designentscheidung in M1, als Konstanten in `shared/constants.ts`): s = Kartenvariante im Kartenformat des Designs (Vorgabe 4:3) mit einer Breite ≥ 2× der breitesten Karte, Startwert 720×540 zugeschnitten (q72); m = 1200 px längste Kante (q78); l = 2048 px längste Kante (q80). Pipeline: das Original wird einmal mit Shrink-on-load zu l dekodiert, m und s entstehen aus dem l-Puffer. Konfiguration: `sharp.cache(false)`, `sharp.concurrency(2)`, `limitInputPixels` = 60 MP. Formate, die der Decoder nicht verkleinert laden kann (progressives JPEG, interlaced PNG, verlustfreies WebP), sind zusätzlich nach Speicherbedarf begrenzt: braucht das ganze Bild im Speicher mehr als 60 MB (`IMAGE_DECODE` in `shared/constants.ts`), folgt 413 – das sind z. B. höchstens 10 MP bei progressivem 4:4:4-JPEG und 15 MP bei 4:2:0. Teure Jobs (mehr als 32 MB, PNG oder WebP über 8 MP, jedes 16-Bit-PNG) belegen beide Plätze der Warteschlange; so bleiben zwei gleichzeitige Uploads unter der Grenze aus NF-05 (Messung in M3). Das Original wird verworfen. Die Dateien werden atomar geschrieben (erst in `tmp/`, dann umbenannt). | Muss |
 | F-16 | Bild ersetzen, entfernen, aufräumen | Das Bild lässt sich ersetzen oder entfernen. Nicht mehr referenzierte Bilddateien werden nicht sofort gelöscht, sondern nach dem Commit nach `images/.trash/` verschoben und erst nach der Backup-Aufbewahrung (`BACKUP_KEEP`, 14 Tage) endgültig entfernt. Beim Start und im wöchentlichen Aufräumlauf holt der Server Dateien, auf die eine `images`-Zeile verweist, aus `images/.trash/` zurück (Wiederherstellung aus Backup). Hochgeladene, nie zugeordnete Bilder verschwinden nach 7 Tagen; verwaiste Dateien wandern im wöchentlichen Aufräumlauf ebenfalls nach `images/.trash/`. | Muss |
 
 Akzeptanzkriterien:
@@ -240,6 +240,7 @@ Akzeptanzkriterien:
   - Ein 12-MP-Hochkantfoto (EXIF-Orientierung 6, mit GPS-Daten) ergibt drei korrekt hochkant ausgerichtete Dateien; mit den Startwerten gilt s ≤ 60 KB, m ≤ 200 KB, l ≤ 600 KB (werden die Maße in M1 geändert, werden die Grenzen im selben Schritt neu gesetzt).
   - Die Dateien enthalten keine EXIF- oder GPS-Daten (im Test mit `sharp().metadata()` geprüft).
   - Die Verarbeitung dauert auf dem Server-PC ≤ 2 s (Log-Messung, NF-25); ein Bild über 60 MP wird mit 413 und „Bild hat zu viele Pixel (max. 60 MP)“ abgelehnt.
+  - Ein progressives 4:4:4-JPEG mit 4001×2500 Pixeln wird mit 413 und „Progressives JPEG hat zu viele Pixel (max. 10 MP) – bitte verkleinern oder als normales JPEG speichern“ abgelehnt; 4000×2500 wird angenommen (API-Test).
   - Scheitert das Schreiben der dritten Variante (simuliert), bleibt keine der drei Dateien liegen, und es entsteht kein DB-Verweis.
 - **F-16**
   - Nach Ersetzen und Speichern liegen für das Rezept nur die drei neuen Dateien in `images/`; die alten liegen in `images/.trash/` und sind nach 14 Tagen entfernt (Test mit injizierter Uhr).
@@ -348,7 +349,8 @@ Akzeptanzkriterien:
 
 | ID | Titel | Beschreibung | Priorität |
 |---|---|---|---|
-| F-29 | Rezeptdetail | Zeigt Bild (Variante m; Antippen öffnet l), Titel, Zeiten (Vorbereitung, Kochen, Summe), Portionen, Tags (antippbar), eigene Sterne und Durchschnitt, Herz, Zutaten nach Gruppen, nummerierte Zubereitungsschritte (Schrift ≥ 18 px am Handy), Beschreibung, Quelle sowie „angelegt von … am …, geändert von … am …“. Die Quelle erscheint nur als Link, wenn sie mit `http://` oder `https://` beginnt, sonst als reiner Text. Bei 600–1023 px und ab 1280 px stehen Zutaten und Schritte nebeneinander, die Zutaten bleiben beim Scrollen stehen; bei 1024–1279 px (Detailspalte neben der Liste) stehen sie untereinander. | Muss |
+| F-29 | Rezeptdetail | Zeigt Bild (Variante m; Antippen öffnet l), Titel, Zeiten (Vorbereitung, Kochen, Summe), Portionen, Tags (antippbar), eigene Sterne und Durchschnitt, Herz, Zutaten nach Gruppen, nummerierte Zubereitungsschritte (Schrift ≥ 18 px am Handy), Beschreibung, Quelle sowie „angelegt von … am …, geändert von … am …“. Die Quelle erscheint nur als Link, wenn sie mit `http://` oder `https://` beginnt, sonst als reiner Text. Bei 600–1023 px und ab 1280 px stehen Zutaten und Schritte nebeneinander, die Zutaten bleiben beim Scrollen stehen; bei 1024–1279 px (Detailspalte neben der Liste) stehen sie untereinander. Ist die Zutatenspalte höher als der sichtbare Bereich, scrollt sie eigenständig, unabhängig von den Schritten (Nutzer-Review M3, umgesetzt in M5). | Muss |
+| F-46 | Detailansicht maximieren | Ab 1024 px (Liste und Detail nebeneinander) blendet eine Schaltfläche in der Detailspalte die Liste aus: Das Rezept nutzt die volle Breite, Zutaten und Schritte stehen nebeneinander, damit man beim Kochen alles im Blick hat. Ein zweiter Fingertipp blendet die Liste wieder ein. Die Wahl gilt je Gerät (`localStorage`) und bleibt beim Wechsel des Rezepts und nach dem Neuladen erhalten. Unter 1024 px gibt es die Schaltfläche nicht, weil das Detail dort ohnehin eine eigene Seite ist. Begründung: Nutzer-Review von M3 (24.09.2026); leichter als der Kochmodus (F-31, Kann). | Soll |
 | F-30 | Abhaken von Zutaten und Zubereitungsschritten | Antippen einer Zeile streicht sie durch. Der Zustand gilt je Rezept und Browser-Tab (`sessionStorage`). | Soll |
 | F-31 | Kochmodus | Vollbild mit einem Zubereitungsschritt je Ansicht, Schrift ≥ 24 px, großer „Weiter“-Fläche, Fortschritt „Schritt 3 von 8“ und den Zutaten als Sheet. Bildschirm wach halten: natives Screen Wake Lock nur im sicheren Kontext; über http ein Hinweis; ein experimenteller Video-Ersatz nur hinter einem Schalter. | Kann |
 | F-32 | Druckansicht | Druck-CSS für das Rezeptdetail. | Kann |
@@ -359,8 +361,14 @@ Akzeptanzkriterien:
   - Nicht gesetzte Felder werden ausgeblendet: keine leeren Zeiten, kein „null“, keine leeren Überschriften. Ausnahme: Ist `created_by` bzw. `updated_by` NULL (Profil gelöscht), steht „unbekannt“.
   - Antippen eines Tags öffnet die Liste mit diesem Tag als Filter.
   - Bei 768×1024 stehen Zutaten und Zubereitung nebeneinander, und die Zutaten bleiben beim Scrollen sichtbar. Bei 1024×768 sind Liste und Detail gleichzeitig sichtbar.
+  - Rezept mit 30 Zutaten bei 768×1024 und bei 1440×900: Jede Zutat lässt sich per Wischen in der Zutatenspalte erreichen, ohne die Schritte zu scrollen; die Schritte scrollen unabhängig davon, und das Ende der Zutatenliste ist erkennbar. Bei kurzer Zutatenliste bleibt es beim bisherigen Verhalten (Spalte steht still, keine eigene Scrollfläche).
   - Liste → Detail: Titel und Bild erscheinen aus den Listendaten ≤ 200 ms nach dem Fingertipp; die übrigen Daten folgen.
   - Quelle `https://example.org/rezept` ist ein Link; Quelle „Omas Kochbuch S. 12“ ist Text (Prüfung auf `javascript:` siehe NF-21).
+- **F-46**
+  - Bei 1024×768 und 1440×900 blendet die Schaltfläche die Liste aus; das Detail nimmt die ganze Breite neben der Navigationsleiste ein, Zutaten und Schritte stehen nebeneinander. Ein zweiter Fingertipp zeigt die Liste wieder, an derselben Scrollposition.
+  - Die Schaltfläche ist ≥ 48×48 px (Küchenaktion), hat ein Icon aus dem Sprite, ein `aria-label` und `aria-pressed`; der Zustand ist auch ohne Farbe am Icon erkennbar.
+  - Im maximierten Zustand führt die Zurück-Geste bzw. -Taste zur Liste; ein anderes Rezept öffnet sich ebenfalls maximiert. Nach dem Neuladen und nach dem Drehen (quer → hochkant → quer) ist der Zustand unverändert.
+  - Bei 390×844 und 768×1024 gibt es die Schaltfläche nicht.
 - **F-30**
   - Antippen der ganzen Zeile (≥ 48 px hoch) streicht sie durch; erneutes Antippen hebt das auf.
   - Der Zustand übersteht den Wechsel Liste ↔ Detail im selben Browser-Tab und wird beim Schließen des Browser-Tabs verworfen.
@@ -457,7 +465,7 @@ Akzeptanzkriterien:
 | NF-02 | Abhängigkeitsbudget | Laufzeit-Abhängigkeiten (`dependencies`): genau `hono`, `@hono/node-server`, `better-sqlite3`, `sharp`, `zod`, `qrcode-generator`. `svelte` steht in `devDependencies`, weil es vollständig gebündelt wird. Im Client-Bundle landen nur `svelte` und `zod/mini` (nur im Editor-Chunk). Kein UI-Framework und kein Router-, State-, Datums-, Icon- oder CSS-Paket zur Laufzeit. | Muss |
 | NF-03 | Lade- und Reaktionszeit am Handy | Schneller erster und warmer Aufruf auf einem Mittelklasse-Handy im WLAN. | Muss |
 | NF-04 | API-Antwortzeiten | Liste und Suche bleiben bei 1.000 Rezepten schnell, ohne N+1-Abfragen. | Muss |
-| NF-05 | Ressourcenverbrauch des Servers | RAM ≤ 80 MB im Leerlauf, ≤ 250 MB bei Bildverarbeitung, 0 % CPU im Leerlauf (kein Client verbunden), Start ≤ 1 s. Uploads werden gestreamt, höchstens 2 Bildjobs laufen parallel; sharp ist nach F-15 konfiguriert (ohne Operations-Cache, 2 Threads). Die Zielwerte werden in M3 auf dem Ziel-PC gemessen; werden sie mit dieser Konfiguration verfehlt, entscheidet der Nutzer über Anpassung oder neue Grenzen. | Muss |
+| NF-05 | Ressourcenverbrauch des Servers | RAM ≤ 100 MB im Leerlauf (angehoben nach der Messung in M3, ADR 0003), ≤ 250 MB bei Bildverarbeitung, 0 % CPU im Leerlauf (kein Client verbunden), Start ≤ 1 s. Uploads werden gestreamt, höchstens 2 Bildjobs laufen parallel; sharp ist nach F-15 konfiguriert (ohne Operations-Cache, 2 Threads). Die Zielwerte werden in M3 auf dem Ziel-PC gemessen; werden sie mit dieser Konfiguration verfehlt, entscheidet der Nutzer über Anpassung oder neue Grenzen. | Muss |
 | NF-06 | Bildauslieferung und Caching | Unveränderliche Bild-URLs mit langem Cache, die passende Variante je Ansicht per `srcset`/`sizes` (höchstens 2-fache Pixeldichte), Lazy Loading, feste Abmessungen. | Muss |
 
 Akzeptanzkriterien:
@@ -479,9 +487,9 @@ Akzeptanzkriterien:
   - Eine Listenanfrage braucht höchstens 4 SQL-Statements (Zähler im Test).
   - Das Log (NF-25) zeigt im Normalbetrieb keine Anfrage über 100 ms, ausgenommen Upload und Export; Backups laufen asynchron (F-40) und sind nicht ausgenommen.
 - **NF-05**
-  - Nach 10 min Leerlauf zeigt der Task-Manager RSS ≤ 80 MB und CPU 0 %; einziger Server-Timer ist die stündliche Wartung.
-  - Leerlauf-RSS 10 min nach einem Upload ≤ 80 MB (misst, ob Speicher nach der Spitze zurückgegeben wird).
-  - Zwei gleichzeitige Uploads von 12-MP-Fotos: RSS-Spitze ≤ 250 MB (`process.memoryUsage` im Log). Weitere Jobs warten in einer Warteschlange; Uploads landen als Stream in `data/tmp/`, nicht im RAM.
+  - Nach 10 min Leerlauf zeigt der Task-Manager RSS ≤ 100 MB und CPU 0 %; einziger Server-Timer ist die stündliche Wartung.
+  - Leerlauf-RSS 10 min nach Uploads von Handyfotos (JPEG bis 12 MP) ≤ 100 MB (misst, ob Speicher nach der Spitze zurückgegeben wird). Nach seltenen Extremfällen wie sehr großen PNG-Dateien darf der Wert höher bleiben (gemessen 111 MB, ADR 0003).
+  - Zwei gleichzeitige Uploads von 12-MP-Fotos: RSS-Spitze ≤ 250 MB (Log-Feld `rssMb`, alle 5 ms während eines Jobs gemessen; zusätzlich `maxRssMb` aus `process.resourceUsage()`). Weitere Jobs warten in einer Warteschlange; Uploads landen als Stream in `data/tmp/`, nicht im RAM.
   - Start bis „bereit“ ≤ 1 s (ohne FTS-Neuaufbau); während einer Bildverarbeitung antwortet `/api/v1/health` in ≤ 200 ms.
 - **NF-06**
   - `/media/<key>-s.webp` antwortet mit `Cache-Control: public, max-age=31536000, immutable`; beim zweiten Aufruf der Liste kommen alle Bilder aus dem Cache.
@@ -918,7 +926,7 @@ Einsatz:
 | Paketmanager | pnpm 10, festgelegt über `"packageManager": "pnpm@10.34.5"` (letzte 10er-Version; aktuell ist pnpm 12.x, der Wechsel ist ein bewusster Upgrade-Schritt mit `pnpm verify`); **ein** `package.json` mit `client/`, `server/`, `shared/` und drei tsconfigs | Trennung ohne Workspace-Aufwand |
 | Dienst | WinSW 2.12.0 (letzte stabile Version, 01/2023), Variante `WinSW-NET461.exe` (~0,6 MB; nutzt das vorinstallierte .NET Framework 4.8) | Startet vor der Anmeldung, Neustart bei Absturz, Stop-Signal per Strg+C, Standardwerkzeuge `sc`/`Start-Service` |
 
-Budgets: Laufzeit-Abhängigkeiten (`dependencies`) genau 6; im Client-Bundle nur `svelte` und `zod/mini`; RAM ≤ 80 MB im Leerlauf; JS initial ≤ 35 KB gzip (NF-01, NF-02, NF-05).
+Budgets: Laufzeit-Abhängigkeiten (`dependencies`) genau 6; im Client-Bundle nur `svelte` und `zod/mini`; RAM ≤ 100 MB im Leerlauf (ADR 0003); JS initial ≤ 35 KB gzip (NF-01, NF-02, NF-05).
 
 ### 5.2 Strittige Punkte zwischen den Vorschlägen und Entscheidung
 
@@ -1157,7 +1165,7 @@ Die untere Navigation (Handy und Tablet hochkant) hat 4 Ziele: **Rezepte · Favo
 
 **Filter-Sheet** – Tags mit Suche und Anzahl (Mehrfachauswahl); Segment „alle müssen passen / einer reicht“; Schalter „Nur Favoriten“; „Mindestbewertung“ (1–5, F-43); Sortierung als Radiogruppe. Änderungen wirken sofort (kein „Anwenden“), die Trefferzahl steht im Sheet-Kopf; darunter „Filter zurücksetzen“.
 
-**Rezeptdetail** – Zurück-Schaltfläche oben links (am Handy); Bild m (Antippen → Vollbild l), Titel, Meta-Zeile (Zeiten, Portionen), Tag-Chips; Bewertungszeile mit 5 eigenen Sternen (je 48 px), „Deine Bewertung (Anna): 4“, „Bewertung entfernen“ und „Ø 4,3 (3)“, aufklappbar mit den Einzelbewertungen; daneben das Herz. Zutaten nach Gruppen mit Abhaken (F-30), Zubereitungsschritte nummeriert mit großer Schrift, Beschreibung, Quelle, Fußzeile „angelegt von … am …, geändert von … am …“. Am Handy eine fixierte untere Leiste mit „Bearbeiten“ und, falls umgesetzt, „Kochmodus“. Das Mehr-Menü (Mehr-Icon aus dem Sprite) enthält Link kopieren (Kann), Drucken (Kann) und „In den Papierkorb“.
+**Rezeptdetail** – Zurück-Schaltfläche oben links (am Handy); Bild m (Antippen → Vollbild l), Titel, Meta-Zeile (Zeiten, Portionen), Tag-Chips; Bewertungszeile mit 5 eigenen Sternen (je 48 px), „Deine Bewertung (Anna): 4“, „Bewertung entfernen“ und „Ø 4,3 (3)“, aufklappbar mit den Einzelbewertungen; daneben das Herz. Zutaten nach Gruppen mit Abhaken (F-30), Zubereitungsschritte nummeriert mit großer Schrift, Beschreibung, Quelle, Fußzeile „angelegt von … am …, geändert von … am …“. Am Handy und Tablet hochkant sitzt oben rechts über dem Foto der Avatar für den Profilwechsel (F-03; Entscheidung vom 25.09.2026, nicht im Artboard). Ab 1024 px sitzt in der Detailspalte die Schaltfläche „Rezept maximieren“ (F-46); eine lange Zutatenspalte scrollt eigenständig (F-29). Am Handy eine fixierte untere Leiste mit „Bearbeiten“ und, falls umgesetzt, „Kochmodus“. Das Mehr-Menü (Mehr-Icon aus dem Sprite) enthält Link kopieren (Kann), Drucken (Kann) und „In den Papierkorb“.
 
 **Editor** – Zurück-/Abbrechen oben links. Ein durchgehendes Formular ohne Assistenten-Schritte. Reihenfolge: Foto („Foto aufnehmen“ und „Bild auswählen“, Vorschau mit Fortschrittsbalken und Entfernen) · Titel (Fokus bei „Neu“; darunter ggf. der Hinweis auf ähnliche Rezepte, F-45) · Tags (Chip-Eingabe mit Autovervollständigung, häufige Tags als antippbare Chips darunter) · Zutaten (Umschalter Zeilen/Text; Zeilen mit Menge `inputmode="decimal"`, Einheit mit Vorschlagsliste, Name, Notiz, Ziehgriff und Auf/Ab-Schaltflächen; unter 400 px Breite zweizeilig, Auf/Ab ggf. in einem Zeilenmenü, Layout aus dem M1-Artboard; Gruppe hinzufügen) · Zubereitung (Umschalter Schritte/Text) · eingeklappt „Weitere Angaben“ (Portionen und Einheit, Vorbereitungszeit, Koch-/Backzeit, Quelle, Beschreibung). Unten fixiert: „Abbrechen“ und „Speichern“; bei offener Bildschirmtastatur passt sich die Leiste über `visualViewport` an und verdeckt kein Feld (NF-07). Validierung inline; beim Speichern springt die Ansicht zum ersten Fehler. Am Tablet quer (ab 1024 px) zweispaltig: links Foto, Titel, Tags und weitere Angaben, rechts Zutaten und Zubereitung. Am Tablet hochkant eine zentrierte Spalte (max. 720 px), weil zwei Spalten bei 768 px zu schmal für die Zutatenzeilen wären (Review M2, 24.09.2026).
 
@@ -1177,7 +1185,7 @@ Die untere Navigation (Handy und Tablet hochkant) hat 4 Ziele: **Rezepte · Favo
 |---|---|---|---|
 | Navigation | Untere Leiste, FAB | Untere Leiste, FAB | Navigationsleiste links, „Neues Rezept“ in der Leiste |
 | Liste | 1 Spalte, große Karten | 2-spaltiges Kartenraster | Liste 360–400 px links, kompakte Karten |
-| Detail | Eigene Seite, Zutaten über Schritten | Eigene Seite, Zutaten (sticky) neben Schritten | Rechte Spalte neben der Liste; Zutaten über Schritten, ab 1280 px nebeneinander |
+| Detail | Eigene Seite, Zutaten über Schritten | Eigene Seite, Zutaten (sticky, bei Überlänge eigenständig scrollbar) neben Schritten | Rechte Spalte neben der Liste; Zutaten über Schritten, ab 1280 px nebeneinander; per Schaltfläche maximierbar, dann volle Breite mit Zutaten neben Schritten (F-46) |
 | Editor | Eine Spalte, fixierte Speichern-Leiste | Eine zentrierte Spalte (max. 720 px) | Zwei Spalten |
 | Filter | Bottom-Sheet | Bottom-Sheet | Seitliches Panel/Popover, wirkt sofort |
 | Gesten | Wischen im Kochmodus, Sheet nach unten ziehen; immer mit Schaltflächen-Alternative | wie Handy | Tastatur: `/` fokussiert die Suche, Escape schließt, Pfeiltasten für Sterne und Kochmodus |
@@ -1308,7 +1316,7 @@ Folgerungen aus nachgerechneten Werten:
 | `TAG_EXISTS` | 409 | Zielname beim Umbenennen existiert; `details` = `{ targetId, targetName, affectedRecipes }` |
 | `LAST_PROFILE` | 409 | Das letzte Profil kann nicht gelöscht werden |
 | `NOT_IN_TRASH` | 409 | Endgültiges Löschen nur aus dem Papierkorb |
-| `PAYLOAD_TOO_LARGE` | 413 | Body bzw. Upload zu groß oder Bild mit mehr als 60 MP |
+| `PAYLOAD_TOO_LARGE` | 413 | Body bzw. Upload zu groß, Bild mit mehr als 60 MP oder mit zu hohem Speicherbedarf beim Dekodieren (F-15); `details.reason = "pixels"` mit `maxPixels` |
 | `UNSUPPORTED_MEDIA` | 415 | Kein JPEG/PNG/WebP; `details.reason = "heic"` bei HEIC/HEIF |
 | `MISDIRECTED` | 421 | Unerlaubter Host-Header (für `Accept: text/html` als deutsche HTML-Seite) |
 | `IMAGES_UNAVAILABLE` | 503 | sharp nicht geladen |
@@ -1475,8 +1483,8 @@ Das Design entsteht mit dem design-Skill von Claude Code als mehrteiliger Design
 
 **M5 – Bewertung, Favoriten, Bedienkomfort (2–3 PT)**
 
-- Lieferumfang: Bewertungs- und Favoriten-API, Sterne (inkl. „Bewertung entfernen“) und Herz optimistisch, Favoriten-Ansicht, Einzelbewertungen (F-27, F-28); Favoriten- und Bewertungsfilter, weitere Sortierungen (F-25, F-43, F-44); Textmodus mit Parser (≥ 40 Testzeilen mit Sollwerten) und Schritt-Parser (F-12); Hinweis auf ähnliche Rezepte (F-45); Abhaken (F-30); weitere Rückgängig-Aktionen (F-35); Aktualität über Revision, 60-s-Abgleich und App-Version (F-36); Darstellungsumschalter (NF-14).
-- DoD: Szenarien S5, S6, S7 und S8 laufen am Handy durch; die AKs von F-12, F-25, F-27, F-28, F-30, F-35, F-36 und F-43 bis F-45 sowie die in M2 verschobenen Bewertungs- und Favoriten-AKs sind grün.
+- Lieferumfang: Bewertungs- und Favoriten-API, Sterne (inkl. „Bewertung entfernen“) und Herz optimistisch, Favoriten-Ansicht, Einzelbewertungen (F-27, F-28); Favoriten- und Bewertungsfilter, weitere Sortierungen (F-25, F-43, F-44); Textmodus mit Parser (≥ 40 Testzeilen mit Sollwerten) und Schritt-Parser (F-12); Hinweis auf ähnliche Rezepte (F-45); Abhaken (F-30); weitere Rückgängig-Aktionen (F-35); Aktualität über Revision, 60-s-Abgleich und App-Version (F-36); Darstellungsumschalter (NF-14). Refactorings aus dem Nutzer-Review von M3 (24.09.2026): Detailansicht maximieren (F-46) und eigenständig scrollbare Zutatenspalte (F-29); die neue Schaltfläche entsteht aus dem Komponentenblatt und kommt in den Screenshot-Satz für M7 (NF-16).
+- DoD: Szenarien S5, S6, S7 und S8 laufen am Handy durch; S4 (Kochen am Tablet quer) läuft mit maximiertem Detail und langer Zutatenliste durch; die AKs von F-12, F-25, F-27, F-28, F-30, F-35, F-36, F-43 bis F-46 und das Scroll-AK von F-29 sowie die in M2 verschobenen Bewertungs- und Favoriten-AKs sind grün.
 
 **M6 – Betrieb auf dem Windows-PC (2 PT)**
 

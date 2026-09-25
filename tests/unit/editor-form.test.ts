@@ -1,5 +1,5 @@
-// Editor form model (F-06, F-07, F-10, F-11, NF-09): form ↔ API input, validation, dirty tracking,
-// conflict diff, tags and reordering. Pure functions from client/src/lib/editor.ts.
+// Editor form model (F-06, F-07, F-10, F-11, F-14, NF-09): form ↔ API input, validation, dirty tracking,
+// conflict diff, tags, reordering and the photo. Pure functions from client/src/lib/editor.ts.
 import { describe, expect, it } from 'vitest';
 import {
   addTags,
@@ -266,6 +266,7 @@ describe('server errors (400 VALIDATION details)', () => {
         { field: 'ingredients.1.group', message: 'Gruppe kaputt' },
         { field: 'title', message: 'Titel kaputt' },
         { field: 'imageId', message: 'Bild nicht gefunden' },
+        { field: 'unbekannt', message: 'Etwas anderes' },
         { field: 'steps', message: 'Zu viele' },
       ],
       built.map,
@@ -275,7 +276,8 @@ describe('server errors (400 VALIDATION details)', () => {
       [errorKey.item(second.key, 'amount')]: 'Obergrenze',
       [errorKey.item(form.items[2]?.key ?? '', 'group')]: 'Gruppe kaputt',
       title: 'Titel kaputt',
-      form: 'Bild nicht gefunden',
+      image: 'Bild nicht gefunden',
+      form: 'Etwas anderes',
       steps: 'Zu viele',
     });
   });
@@ -302,7 +304,8 @@ describe('formFromDetail (edit mode)', () => {
       'Teig schlagen.',
       'Spätzle schaben.\nMit Käse schichten.',
     ]);
-    expect(form).toMatchObject({ servings: '4', prepMinutes: '20', cookMinutes: '25', imageId: 17 });
+    expect(form).toMatchObject({ servings: '4', prepMinutes: '20', cookMinutes: '25' });
+    expect(form.image).toEqual({ id: 17, urls: { s: '/s', m: '/m', l: '/l' }, width: 1200, height: 800 });
   });
 
   it('round-trips through buildRequest without changes', () => {
@@ -327,7 +330,7 @@ describe('formFromDetail (edit mode)', () => {
     const form = formFromDetail(detail({ ingredients: [], steps: [], servings: null, image: null }));
     expect(form.items).toHaveLength(1);
     expect(form.steps).toHaveLength(1);
-    expect(form).toMatchObject({ servings: '', imageId: null });
+    expect(form).toMatchObject({ servings: '', image: null });
   });
 });
 
@@ -353,6 +356,25 @@ describe('dirty tracking and conflict diff (F-07, F-09)', () => {
     if (lastStep) lastStep.text = 'Anders.';
     mine.cookMinutes = '30';
     expect(diffFields(base, mine)).toEqual(['title', 'tags', 'steps', 'cookMinutes']);
+  });
+
+  it('counts a new, replaced or removed photo as a change, not new URLs of the same one (F-14)', () => {
+    const base = formFromDetail(detail());
+    const same = cloneForm(base);
+    if (same.image) same.image = { ...same.image, urls: { s: '/s2', m: '/m2', l: '/l2' } };
+    expect(formKey(same)).toBe(formKey(base));
+    const replaced = cloneForm(base);
+    replaced.image = { id: 18, urls: { s: '/s', m: '/m', l: '/l' }, width: 800, height: 1200 };
+    expect(diffFields(base, replaced)).toEqual(['image']);
+    const removed = cloneForm(base);
+    removed.image = null;
+    expect(diffFields(base, removed)).toEqual(['image']);
+    expect(formKey(removed)).not.toBe(formKey(base));
+    // A new recipe with only a photo is dirty too (draft and "Änderungen verwerfen?").
+    const fresh = newForm();
+    const withPhoto = cloneForm(fresh);
+    withPhoto.image = replaced.image;
+    expect(formKey(withPhoto)).not.toBe(formKey(fresh));
   });
 
   it('compares tags as a set by normalize(), the way the server keeps them (F-17)', () => {
@@ -408,6 +430,19 @@ describe('dirty tracking and conflict diff (F-07, F-09)', () => {
     expect(target.description).toBe(server.description);
   });
 
+  it('takes over my photo or my removal of it (F-07)', () => {
+    const server = formFromDetail(detail());
+    const mine = cloneForm(server);
+    mine.image = { id: 30, urls: { s: '/s30', m: '/m30', l: '/l30' }, width: 2048, height: 1365 };
+    const target = cloneForm(server);
+    applyField(target, 'image', mine);
+    expect(target.image).toEqual(mine.image);
+    expect(target.image).not.toBe(mine.image);
+    mine.image = null;
+    applyField(target, 'image', mine);
+    expect(target.image).toBeNull();
+  });
+
   it('describes field values for the conflict marks', () => {
     const form = formFromDetail(detail());
     expect(fieldPreview(form, 'ingredients')).toBe('4 Zutaten');
@@ -415,6 +450,9 @@ describe('dirty tracking and conflict diff (F-07, F-09)', () => {
     expect(fieldPreview(form, 'tags')).toBe('Vegetarisch, Schwäbisch');
     expect(fieldPreview(form, 'cookMinutes')).toBe('25 min');
     expect(fieldPreview(form, 'source')).toBe('(leer)');
+    expect(fieldPreview(form, 'image')).toBe('ein anderes Foto');
+    form.image = null;
+    expect(fieldPreview(form, 'image')).toBe('(kein Foto)');
   });
 });
 
@@ -558,6 +596,44 @@ describe('createOutcome: POST answered with an existing recipe (NF-09, F-09 AK)'
     draft.description = 'Nach dem Wiederherstellen ergänzt';
     expect(createOutcome(draft, stored(first))).toBe('update');
     expect(createOutcome(cloneForm(first, true), stored(first))).toBe('saved');
+  });
+});
+
+describe('photo in the request (F-14, F-16)', () => {
+  it('sends the id of a new photo on create', () => {
+    const form = newForm('Linsensuppe');
+    form.image = { id: 42, urls: { s: '/s', m: '/m', l: '/l' }, width: 2048, height: 1536 };
+    const result = buildRequest(form, CREATE);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body.imageId).toBe(42);
+    expect('image' in result.body).toBe(false);
+  });
+
+  it('sends imageId null on create without a photo', () => {
+    const result = buildRequest(newForm('Linsensuppe'), CREATE);
+    expect(result.ok && result.body.imageId).toBeNull();
+  });
+
+  it('sends the kept, the replacing or null for a removed photo on update', () => {
+    const form = formFromDetail(detail());
+    const kept = buildRequest(form, { kind: 'update', version: 3 });
+    expect(kept.ok && kept.body.imageId).toBe(17);
+    form.image = { id: 18, urls: { s: '/s', m: '/m', l: '/l' }, width: 2048, height: 1536 };
+    const replaced = buildRequest(form, { kind: 'update', version: 3 });
+    expect(replaced.ok && replaced.body.imageId).toBe(18);
+    form.image = null;
+    const removed = buildRequest(form, { kind: 'update', version: 3 });
+    // PUT replaces the recipe: null removes the photo (Kap. 7.4).
+    expect(removed.ok && removed.body.imageId).toBeNull();
+  });
+
+  it('copies the photo in snapshots, so the baseline never shares it with the form', () => {
+    const form = formFromDetail(detail());
+    const copy = cloneForm(form);
+    expect(copy.image).toEqual(form.image);
+    expect(copy.image).not.toBe(form.image);
+    expect(copy.image?.urls).not.toBe(form.image?.urls);
   });
 });
 

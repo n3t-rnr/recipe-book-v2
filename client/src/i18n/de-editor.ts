@@ -17,6 +17,44 @@ export const deEditor = {
   save: 'Speichern',
   cancel: 'Abbrechen',
 
+  /** Photo section (F-14, artboards HandyEditor and TabletQuerEditor). */
+  photo: {
+    label: 'Foto',
+    optional: 'optional',
+    empty: 'Noch kein Foto',
+    emptyHint: 'Ohne Foto zeigt die App ein Platzhalterbild.',
+    take: 'Foto aufnehmen',
+    choose: 'Bild auswählen',
+    preview: 'Vorschau des Fotos',
+    remove: 'Foto entfernen',
+    removed: 'Foto entfernt',
+    /** No-break space before "%", so the number never stands alone at a line end. */
+    uploading: (percent: number) => `Wird hochgeladen … ${percent}\u00a0%`,
+    processing: 'Wird verarbeitet …',
+    progress: 'Fortschritt des Uploads',
+    /** Polite announcements of an upload's start and processing; `uploaded` announces the success. */
+    sending: 'Foto wird hochgeladen …',
+    processingPhoto: 'Foto wird verarbeitet …',
+    uploaded: 'Foto hochgeladen',
+    failed: (reason: string) => `Hochladen fehlgeschlagen: ${reason}`,
+    retry: 'Erneut hochladen',
+    tooLarge: 'Bild zu groß (max. 20 MB)',
+    gone: 'Foto nicht mehr vorhanden – bitte erneut aufnehmen',
+    waiting: 'Warte auf das Foto …',
+    /**
+     * Client-side upload failures (lib/upload.ts). NETWORK and INTERNAL repeat ERROR_TEXTS of de.ts
+     * (the test checks it); importing de.ts here would grow the initial JS (NF-01, see upload.ts).
+     */
+    errors: {
+      NETWORK: 'Server nicht erreichbar – läuft der Rezepte-PC?',
+      TIMEOUT: 'Seit 30 Sekunden kein Fortschritt – prüf das WLAN.',
+      INTERNAL: 'Unerwarteter Fehler auf dem Server. Versuch es noch einmal.',
+    },
+    /** Conflict marks (F-07). */
+    otherPhoto: 'ein anderes Foto',
+    noPhoto: '(kein Foto)',
+  },
+
   title: {
     label: 'Titel',
     placeholder: 'z. B. Käsespätzle',

@@ -6,7 +6,7 @@
 
 ## Kontext
 
-Die App läuft als ein einziger Node-Prozess auf einem Windows-PC im Heimnetz und wird über reines HTTP von Handys, Tablets und PCs bedient. Entwickelt und betrieben wird sie von einer Person. Daraus folgen harte Budgets: Initial-JS ≤ 35 KB gzip (NF-01), genau sechs Laufzeit-Abhängigkeiten (NF-02), RAM ≤ 80 MB im Leerlauf (NF-05) und ein Qualitäts-Gate `pnpm verify` ab M0 (NF-28). Der Prototyp v1 (Vue 3, Fastify 4, Prisma/SQLite, Docker, nginx) kam ohne Tests, Lint und Typecheck nie über drei Screens hinaus (Kap. 1.1).
+Die App läuft als ein einziger Node-Prozess auf einem Windows-PC im Heimnetz und wird über reines HTTP von Handys, Tablets und PCs bedient. Entwickelt und betrieben wird sie von einer Person. Daraus folgen harte Budgets: Initial-JS ≤ 35 KB gzip (NF-01), genau sechs Laufzeit-Abhängigkeiten (NF-02), RAM ≤ 80 MB im Leerlauf (NF-05; seit ADR 0003 ≤ 100 MB) und ein Qualitäts-Gate `pnpm verify` ab M0 (NF-28). Der Prototyp v1 (Vue 3, Fastify 4, Prisma/SQLite, Docker, nginx) kam ohne Tests, Lint und Typecheck nie über drei Screens hinaus (Kap. 1.1).
 
 ## Entscheidung
 
