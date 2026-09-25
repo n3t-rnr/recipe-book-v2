@@ -7,7 +7,8 @@ import { gzipSync } from 'node:zlib';
 const KB = 1024;
 
 export const BUDGETS = {
-  initialJs: 35 * KB,
+  /** Raised from 35 KB for M4 and M5 (search, chips, hearts and stars on the first screen), ADR 0004. */
+  initialJs: 38 * KB,
   /** Every lazily loaded JS chunk (editor, secondary pages); decided 2026-09-23, ADR 0002. */
   lazyChunkJs: 30 * KB,
   totalCss: 15 * KB,

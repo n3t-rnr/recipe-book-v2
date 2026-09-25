@@ -14,7 +14,7 @@ Für die gefühlte Geschwindigkeit zählt, was beim ersten Aufruf geladen wird. 
 
 Sebastian hat am 23.09.2026 entschieden:
 
-- Das Start-JavaScript bleibt strikt bei **≤ 35 KB gzip**. Dazu zählen alle Skripte und `modulepreload`-Chunks aus `index.html`.
+- Das Start-JavaScript bleibt strikt bei **≤ 35 KB gzip** (seit ADR 0004: ≤ 38 KB). Dazu zählen alle Skripte und `modulepreload`-Chunks aus `index.html`.
 - Jeder **nachgeladene JS-Chunk** darf höchstens **30 KB gzip** groß sein.
 - Die **Summe aller Chunks** wird im Size-Check nur noch zur Information ausgegeben und ist keine Grenze mehr.
 - Die Profilwahl gehört nicht mehr zur Initial-Route. Sie wird beim ersten Start nachgeladen, weil sie auf einem Gerät nur einmal gebraucht wird.

@@ -68,7 +68,7 @@ Nicht in Release 1.0: Zugriff aus dem Internet, Nutzerkonten mit Passwort oder R
 | Finden | Bekanntes Rezept unter 200 Rezepten über Suche oder Tag-Chips | ≤ 10 s, ≤ 3 Fingertipps |
 | Profilwechsel | Von jeder Hauptansicht | ≤ 2 Fingertipps |
 | Neues Gerät verbinden | QR-Code scannen bis Profilwahl | ≤ 1 min |
-| Leichtgewicht | Initial-JS (gzip) / RAM des Servers im Leerlauf | ≤ 35 KB / ≤ 100 MB (ADR 0003) |
+| Leichtgewicht | Initial-JS (gzip) / RAM des Servers im Leerlauf | ≤ 38 KB (ADR 0004) / ≤ 100 MB (ADR 0003) |
 | Zuverlässigkeit | PC-Neustart ohne Anmeldung; Wiederherstellung aus Backup | App erreichbar; Wiederherstellung einmal real erfolgreich |
 | Qualität | Muss-Akzeptanzkriterien auf 4 Geräteklassen (Android-Handy, iPhone, iPad, Windows-PC) | 100 % erfüllt |
 | Nutzung (Beobachtung, kein Abnahmekriterium) | Vier Wochen nach Abnahme | ≥ 30 Rezepte, von ≥ 2 Profilen bewertet |
@@ -275,6 +275,7 @@ Akzeptanzkriterien:
   - Nach Umbenennen oder Zusammenführen findet die Suche die Rezepte unter dem neuen Namen (API-Test).
   - Löschen fragt „Von 4 Rezepten entfernen?“ und entfernt nur die Zuordnungen; die Rezepte bleiben.
   - Umbenennen, Zusammenführen und Löschen erhöhen die `version` aller betroffenen Rezepte in derselben Transaktion; ein `PUT` mit der alten Version liefert 409 `VERSION_CONFLICT`, statt den alten Tag per Upsert wieder anzulegen (API-Test).
+  - Tag-Änderungen erhöhen die `version`, ändern aber nicht „geändert von … am …“; ein daraus folgender Konfliktdialog nennt deshalb den letzten inhaltlichen Bearbeiter (bewusst akzeptiert, M4-Planung).
 - **F-20**
   - Nach einer Neuinstallation zeigt die Tag-Seite diese 10 Tags mit Anzahl 0, und die Chip-Reihe der Liste bietet sie an.
   - Start-Tags lassen sich wie alle Tags ändern und löschen; ein Neustart legt gelöschte Start-Tags nicht erneut an (`meta.seeded`).
@@ -407,7 +408,7 @@ Akzeptanzkriterien:
   - Bis Rezept 30 scrollen, öffnen, Zurück → Rezept 30 ist wieder im Sichtbereich, die Filter sind unverändert.
   - Zwei Filter setzen und neu laden → beide aktiv; ein kopierter Link zeigt auf einem anderen Gerät dieselbe gefilterte Liste.
   - Ein offenes Bottom-Sheet schließt die Zurück-Taste (Android) bzw. die Zurück-Geste; die Seite bleibt.
-  - Jede Unteransicht (Detail am Handy, Editor, Tag-Seite, Papierkorb, Status, Verbinden) hat oben links eine Zurück-Schaltfläche (≥ 44 px); die Liste hat eine Aktualisieren-Schaltfläche. Beides funktioniert in einer iOS-Verknüpfung ohne Browserleiste.
+  - Jede Unteransicht (Detail am Handy, Editor, Papierkorb, Status, Verbinden; die Tag-Seite ist wie Rezepte, Favoriten und Mehr ein Hauptziel der Navigation und hat keine – Entscheidung vom 25.09.2026) hat oben links eine Zurück-Schaltfläche (≥ 44 px); die Liste hat eine Aktualisieren-Schaltfläche. Beides funktioniert in einer iOS-Verknüpfung ohne Browserleiste.
 - **F-35**
   - Favorit entfernen, Bewertung entfernen, Tag vom Rezept entfernen und Zutat oder Zubereitungsschritt im Editor entfernen werden sofort ausgeführt; der Toast „Rückgängig“ (8 s) stellt den vorherigen Zustand an alter Position wieder her.
   - Vorab bestätigt werden nur: endgültig löschen, Profil löschen, Tag löschen, Tags zusammenführen und das Verwerfen ungespeicherter Editor-Änderungen (F-09).
@@ -462,7 +463,7 @@ Akzeptanzkriterien:
 
 | ID | Titel | Beschreibung | Priorität |
 |---|---|---|---|
-| NF-01 | Transfer- und Bundle-Budget | Initial-Route (App-Shell und Liste): JS ≤ 35 KB gzip; die Profilwahl wird beim ersten Start nachgeladen. Jeder nachgeladene JS-Chunk ≤ 30 KB gzip; die Summe aller Chunks wird nur berichtet (Entscheidung vom 23.09.2026, ADR 0002, ersetzt „JS gesamt ≤ 70 KB“). CSS ≤ 15 KB gzip. Editor, Tag-Verwaltung, Mehr/Verbinden/Status und Kochmodus werden lazy geladen. Webfonts insgesamt ≤ 100 KB WOFF2, davon für die erste Ansicht höchstens 2 Dateien mit zusammen ≤ 60 KB. Erster Besuch der Liste ohne Bilder ≤ 160 KB Transfer. | Muss |
+| NF-01 | Transfer- und Bundle-Budget | Initial-Route (App-Shell und Liste): JS ≤ 38 KB gzip (bis M3 35 KB, angehoben mit ADR 0004); die Profilwahl wird beim ersten Start nachgeladen. Jeder nachgeladene JS-Chunk ≤ 30 KB gzip; die Summe aller Chunks wird nur berichtet (Entscheidung vom 23.09.2026, ADR 0002, ersetzt „JS gesamt ≤ 70 KB“). CSS ≤ 15 KB gzip. Editor, Tag-Verwaltung, Mehr/Verbinden/Status und Kochmodus werden lazy geladen. Webfonts insgesamt ≤ 100 KB WOFF2, davon für die erste Ansicht höchstens 2 Dateien mit zusammen ≤ 60 KB. Erster Besuch der Liste ohne Bilder ≤ 160 KB Transfer. | Muss |
 | NF-02 | Abhängigkeitsbudget | Laufzeit-Abhängigkeiten (`dependencies`): genau `hono`, `@hono/node-server`, `better-sqlite3`, `sharp`, `zod`, `qrcode-generator`. `svelte` steht in `devDependencies`, weil es vollständig gebündelt wird. Im Client-Bundle landen nur `svelte` und `zod/mini` (nur im Editor-Chunk). Kein UI-Framework und kein Router-, State-, Datums-, Icon- oder CSS-Paket zur Laufzeit. | Muss |
 | NF-03 | Lade- und Reaktionszeit am Handy | Schneller erster und warmer Aufruf auf einem Mittelklasse-Handy im WLAN. | Muss |
 | NF-04 | API-Antwortzeiten | Liste und Suche bleiben bei 1.000 Rezepten schnell, ohne N+1-Abfragen. | Muss |
@@ -473,7 +474,7 @@ Akzeptanzkriterien:
 
 - **NF-01**
   - `scripts/size-check.ts` (gzip über `node:zlib`, ohne Zusatzpaket) prüft `dist/` und lässt `pnpm build` fehlschlagen, sobald eine Grenze (inkl. Schriftbudget) überschritten ist.
-  - Erster Besuch der Liste bei leerem Cache (Netzwerk-Tab): JS ≤ 35 KB, Summe ohne Bilder ≤ 160 KB, nur Requests an den eigenen Origin.
+  - Erster Besuch der Liste bei leerem Cache (Netzwerk-Tab): JS ≤ 38 KB, Summe ohne Bilder ≤ 160 KB, nur Requests an den eigenen Origin.
   - Den Editor-Chunk lädt der Browser erst beim Öffnen des Editors (Netzwerk-Tab).
 - **NF-02**
   - `dependencies` in `package.json` enthält genau die sechs genannten Pakete, `svelte` steht in `devDependencies`; jede Ergänzung braucht einen ADR in `docs/ADR/`. Den Inhalt des Client-Bundles prüfen Size-Check und eine Chunk-Analyse (`vite build --mode analyze`).
@@ -927,7 +928,7 @@ Einsatz:
 | Paketmanager | pnpm 10, festgelegt über `"packageManager": "pnpm@10.34.5"` (letzte 10er-Version; aktuell ist pnpm 12.x, der Wechsel ist ein bewusster Upgrade-Schritt mit `pnpm verify`); **ein** `package.json` mit `client/`, `server/`, `shared/` und drei tsconfigs | Trennung ohne Workspace-Aufwand |
 | Dienst | WinSW 2.12.0 (letzte stabile Version, 01/2023), Variante `WinSW-NET461.exe` (~0,6 MB; nutzt das vorinstallierte .NET Framework 4.8) | Startet vor der Anmeldung, Neustart bei Absturz, Stop-Signal per Strg+C, Standardwerkzeuge `sc`/`Start-Service` |
 
-Budgets: Laufzeit-Abhängigkeiten (`dependencies`) genau 6; im Client-Bundle nur `svelte` und `zod/mini`; RAM ≤ 100 MB im Leerlauf (ADR 0003); JS initial ≤ 35 KB gzip (NF-01, NF-02, NF-05).
+Budgets: Laufzeit-Abhängigkeiten (`dependencies`) genau 6; im Client-Bundle nur `svelte` und `zod/mini`; RAM ≤ 100 MB im Leerlauf (ADR 0003); JS initial ≤ 38 KB gzip (ADR 0004) (NF-01, NF-02, NF-05).
 
 ### 5.2 Strittige Punkte zwischen den Vorschlägen und Entscheidung
 

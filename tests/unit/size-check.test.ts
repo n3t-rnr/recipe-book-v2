@@ -60,13 +60,13 @@ describe('checkBudgets (NF-01)', () => {
     // The lazy editor chunk counts for the per-chunk budget and the informational total, not for the initial route.
     expect(lazy?.limit).toBe(30 * 1024);
     expect(totalJs).toBeGreaterThan(initial?.bytes ?? 0);
-    expect(initial?.limit).toBe(35 * 1024);
+    expect(initial?.limit).toBe(38 * 1024);
   });
 
-  it('flags an initial script over 35 KB gzip', () => {
+  it('flags an initial script over 38 KB gzip', () => {
     const dir = fixture({
       'index.html': indexHtml('<script type="module" src="/assets/index-big.js"></script>'),
-      'assets/index-big.js': incompressible(40),
+      'assets/index-big.js': incompressible(48),
     });
     const { rows, violations } = checkBudgets(dir);
     const initial = rows.find((r) => r.label === 'JS initial (gzip)');
@@ -81,7 +81,7 @@ describe('checkBudgets (NF-01)', () => {
         '<script type="module" src="/assets/index-a.js"></script><link rel="modulepreload" href="/assets/big.js">',
       ),
       'assets/index-a.js': 'import "./big.js";\n',
-      'assets/big.js': incompressible(40),
+      'assets/big.js': incompressible(48),
     });
     expect(checkBudgets(dir).violations.some((v) => v.startsWith('JS initial'))).toBe(true);
   });
