@@ -37,8 +37,17 @@ Die Warnung `Ignored build scripts: better-sqlite3` ist erwartet und kein Fehler
 | `pnpm test` | `vitest run`: Unit-Tests (`tests/unit`) und API-Tests gegen eine In-Memory-SQLite (`tests/api`). |
 | `pnpm verify` | Qualitäts-Gate: `typecheck`, `lint`, `test` und `build` inklusive Size-Check. Muss vor jedem Commit grün sein; GitHub Actions führt es bei jedem Push und Pull Request aus (`.github/workflows/verify.yml`). |
 | `pnpm size` | Nur den Size-Check gegen ein vorhandenes `dist/` (ohne neuen Build). |
+| `pnpm e2e` | Baut den Client und führt die Browser-Tests aus (`tests/e2e`, Playwright) – auf emuliertem Android-Handy, iPhone, iPad und PC. Jeder Test-Worker startet einen eigenen Server mit leerem Datenordner; ein Test schlägt fehl, sobald die Seite gegen die CSP verstößt oder im Browser einen Fehler wirft. Nicht Teil von `pnpm verify`. |
 
 Einzelne Testdatei: `pnpm exec vitest run tests/unit/normalize.test.ts`.
+
+Browser-Tests: Einmalig nach `pnpm install` die Browser laden (rund 250 MB, landen unter `%LOCALAPPDATA%\ms-playwright`):
+
+```powershell
+pnpm exec playwright install chromium webkit
+```
+
+Einzelne Datei oder ein Gerät: `pnpm exec playwright test tests/e2e/photos.spec.ts --project=phone-webkit` (vorher `pnpm build`). Die Geräte-Profile stehen in `playwright.config.ts`; ein Test läuft auf den Geräten, deren Kennzeichen `@phone`, `@tablet` oder `@desktop` in seinem Titel steht.
 
 ## Projektstruktur
 
@@ -46,7 +55,7 @@ Einzelne Testdatei: `pnpm exec vitest run tests/unit/normalize.test.ts`.
 client/    Svelte-SPA (Vite-Root), public/ mit Manifest und Icons
 server/    Hono-Server: main.ts (Start), app.ts (App-Factory), middleware/, routes/, services/, db/
 shared/    Code für Client und Server: zod-Schemas, Normalisierung, Konstanten
-tests/     unit/, api/, fixtures/, helpers/
+tests/     unit/, api/, e2e/ (Playwright), fixtures/, helpers/
 scripts/   dev.ts (Dev-Runner), size-check.ts (Budgets)
 deploy/    install.ps1 (Firewall und Netzwerk; Dienst folgt in M6)
 docs/      Anforderungskatalog, ADRs, Design

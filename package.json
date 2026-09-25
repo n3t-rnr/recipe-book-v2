@@ -14,13 +14,14 @@
     "dev:client": "vite",
     "build": "vite build && node scripts/size-check.ts",
     "start": "node --disable-warning=ExperimentalWarning server/main.ts",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.client.json --fail-on-warnings && tsc -p tsconfig.server.json && tsc -p tsconfig.shared.json",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.client.json --fail-on-warnings && tsc -p tsconfig.server.json && tsc -p tsconfig.shared.json && tsc -p tsconfig.e2e.json",
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
     "size": "node scripts/size-check.ts",
     "seed": "node --disable-warning=ExperimentalWarning tests/seed.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "e2e": "vite build && playwright test"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
+    "@playwright/test": "1.63.0",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/better-sqlite3": "9.6.0",
     "@types/node": "24.13.6",
