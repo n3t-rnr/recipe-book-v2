@@ -34,6 +34,7 @@ const FIELD_NAMES: Record<string, string> = {
   version: 'Version',
   createKey: 'Anlageschlüssel',
   avatar: 'Farbe',
+  intoTagId: 'Ziel-Tag',
 };
 
 function label(path: PropertyKey[]): string {

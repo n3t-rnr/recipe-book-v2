@@ -64,7 +64,15 @@ export const deEditor = {
   tags: {
     label: 'Tags',
     placeholder: 'Tag hinzufügen …',
-    hint: 'Enter oder Komma fügt den Tag hinzu.',
+    hint: 'Enter oder Komma fügt den Tag hinzu. Mit den Pfeiltasten wählst du einen Vorschlag.',
+    /** Captions above the suggestion list and the chips of the artboard (F-18). */
+    suggestions: 'Vorschläge',
+    frequent: 'Häufig verwendet',
+    /** Accessible name of a „Häufig verwendet“ chip. */
+    add: (tag: string) => `${tag} hinzufügen`,
+    /** Accessible name of a suggestion: the chip shows „Vegetarisch 12“. */
+    option: (tag: string, n: number) => `${tag}, ${n} ${plural(n, 'Rezept', 'Rezepte')}`,
+    added: (tag: string) => `Tag „${tag}“ hinzugefügt`,
     remove: (tag: string) => `${tag} entfernen`,
     removed: (tag: string) => `Tag „${tag}“ entfernt`,
     limit: (max: number) => `Höchstens ${max} Tags pro Rezept`,

@@ -2,6 +2,7 @@
 // remaining trash days (F-08), ingredient groups (F-10), source links (F-29, NF-21), 410 details (F-33).
 import { describe, expect, it } from 'vitest';
 import { ds } from '../../client/src/i18n/de-screens.ts';
+import { df } from '../../client/src/i18n/de-screens-filter.ts';
 import { dl } from '../../client/src/i18n/de-screens-lazy.ts';
 import {
   footerText,
@@ -201,5 +202,40 @@ describe('list texts', () => {
     expect(dl.more.deleteText(3, 1)).toBe(
       'Dabei gehen 3 Bewertungen und 1 Favorit verloren. Die Rezepte bleiben erhalten.',
     );
+  });
+
+  it('count a filtered list against all recipes (F-24, artboard Main „14 von 38 Rezepten“)', () => {
+    expect(ds.list.countOf(14, 38)).toBe('14 von 38 Rezepten');
+    expect(ds.list.countOf(1, 1)).toBe('1 von 1 Rezept');
+    expect(ds.list.countOf(0, 38)).toBe('0 von 38 Rezepten');
+    expect(ds.list.countOf(1, 38)).toBe('1 von 38 Rezepten');
+    expect(ds.list.countOf(40, 1000)).toBe('40 von 1.000 Rezepten');
+  });
+
+  it('name the search row and its filter button (Kap. 6.3, F-24 AK2 „als Zahl am Filtersymbol“)', () => {
+    expect(ds.list.search).toBe('Suchen');
+    expect(ds.list.searchPlaceholder).toBe('Rezepte, Zutaten, Tags suchen');
+    expect(ds.list.clearSearch).toBe('Suchbegriff löschen');
+    expect(ds.list.filter(2)).toBe('Filter, 2 aktiv');
+    expect(ds.list.filter(1)).toBe('Filter, 1 aktiv');
+    expect(ds.list.filter(0)).toBe('Filter');
+    expect(ds.list.allTags).toBe('Alle Tags …');
+    expect(`${ds.list.sortPrefix}${ds.list.sorts.newest}`).toBe('Sortierung: Neueste');
+    // F-26: „Relevanz (Standard bei Suchbegriff), Neueste (Standard ohne Suchbegriff), Titel A–Z“.
+    expect(ds.list.sorts).toEqual({ relevance: 'Relevanz', newest: 'Neueste', title: 'Titel A–Z' });
+  });
+
+  it('use the texts of the filter sheet and the search without hits (Kap. 6.3, Kap. 6.6, F-23, F-33)', () => {
+    expect(df.title).toBe('Filter');
+    expect(df.close).toBe('Filter schließen');
+    expect(df.hits(14)).toBe('14 Treffer');
+    expect(df.hits(1000)).toBe('1.000 Treffer');
+    expect(df.tagSearch).toBe('Tags durchsuchen');
+    expect(df.modes).toEqual({ all: 'Alle müssen passen', any: 'Einer reicht' });
+    expect(df.reset).toBe('Filter zurücksetzen');
+    expect(df.noHits('Spazle')).toBe('Nichts gefunden für ‚Spazle‘');
+    expect(`${df.didYouMean} Spätzle?`).toBe('Meintest du: Spätzle?');
+    expect(df.create('Spazle')).toBe('Rezept ‚Spazle‘ anlegen');
+    expect(df.noHitsFiltered).toBe('Keine Rezepte mit diesen Filtern');
   });
 });

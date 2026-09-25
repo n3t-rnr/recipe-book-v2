@@ -35,6 +35,10 @@ function slimPreloadHelper(): Plugin {
     enforce: 'pre',
     configResolved(config) {
       if (config.base !== '/') throw new Error('client/src/lib/preload-helper.ts setzt base "/" voraus.');
+      // The helper only preloads JS chunks; per-chunk stylesheets would be loaded as modules.
+      if (config.build.cssCodeSplit !== false) {
+        throw new Error('client/src/lib/preload-helper.ts setzt build.cssCodeSplit: false voraus.');
+      }
     },
     resolveId(id) {
       return id === '\0vite/preload-helper.js' ? preloadHelper : undefined;
@@ -54,6 +58,10 @@ export default defineConfig({
     assetsInlineLimit: 0,
     // Every NF-17 browser supports <link rel="modulepreload">; the polyfill would only cost entry bytes (NF-01).
     modulePreload: { polyfill: false },
+    // One stylesheet for all screens (NF-01): at the end of M3 the rules gzip to 10,214 B as one file but to
+    // 14,847 B as 14 separately compressed chunk files. The entry also drops the CSS file names from its
+    // __vitePreload dependency lists, and preload-helper.ts no longer needs a stylesheet branch.
+    cssCodeSplit: false,
     rolldownOptions: {
       output: {
         codeSplitting: {

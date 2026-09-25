@@ -2,6 +2,8 @@
  * Mini router on the History API (Kap. 5.1, F-34): reactive route, params and query; link interception;
  * Back closes open sheets first; scroll positions per history entry in sessionStorage; redirects for
  * "/" and routes that need a profile (F-02). The route table and pure helpers live in routes.ts.
+ * Filter changes inside an open sheet (Kap. 6.3: „Änderungen wirken sofort“) rewrite the URL and keep the
+ * sheet open; when it closes, the page's own history entry takes over that URL (see setQuery).
  */
 import { tick } from 'svelte';
 import { type HistoryUrls, parseUrls, pathBefore, recordUrl } from './history-urls.ts';
@@ -81,6 +83,11 @@ class Router {
   #dropStale = false;
   #pendingBack: Promise<void> | null = null;
   #resolveBack: (() => void) | null = null;
+  /**
+   * URL set by setQuery() while sheets were open. Only the current (overlay) entry could take it; every
+   * entry below that Back or a closing sheet lands on gets it too, up to the page's own entry.
+   */
+  #pageUrl: string | null = null;
   #scroll = new Map<string, Positions>();
   #urls: HistoryUrls = new Map();
   #areas = new Map<ScrollArea, HTMLElement>();
@@ -99,8 +106,8 @@ class Router {
     this.#entry = entry ? { key: entry.key, idx: entry.idx } : { key: newKey(), idx: 0 };
     if (entry?.overlay) {
       // Reloaded while a sheet or the editor's guard entry was current. No overlay is open after a
-      // reload, so step back onto the page's own entry (same URL and key); otherwise a duplicate of
-      // the page stays in the history and Back seems to do nothing.
+      // reload, so step back onto the page's own entry (same key); otherwise a duplicate of the page
+      // stays in the history and Back seems to do nothing.
       this.#entry.idx--;
       this.#dropStale = true;
       this.#stepBack();
@@ -110,6 +117,9 @@ class Router {
       history.replaceState(this.#entry, '', location.href);
     }
     this.#apply(currentUrl(), 'initial', {});
+    // A filter changed in the sheet may exist only in the overlay entry's URL, so the page entry takes
+    // the URL shown now over (read after #apply: a redirect has replaced it; the step back is async).
+    if (entry?.overlay) this.#pageUrl = currentUrl();
 
     window.addEventListener('popstate', this.#onPopState);
     document.addEventListener('click', this.#onClick);
@@ -146,13 +156,28 @@ class Router {
     this.#apply(url, replace ? 'replace' : 'push', options);
   }
 
-  /** Updates the query of the current route (filters, search); keeps scroll position and focus. */
+  /**
+   * Updates the query of the current route (filters, search); keeps scroll position and focus. While a
+   * sheet or dialog is open, it stays open: only the URL of the current entry changes (never a push), and
+   * the page's entry takes the URL over once the overlays close (Back, close button, reload).
+   */
   setQuery(query: QueryInput, options: { replace?: boolean } = {}): void {
-    this.navigate(buildUrl(this.route.path, query), {
-      replace: options.replace ?? true,
-      scroll: false,
-      focus: false,
-    });
+    const url = buildUrl(this.route.path, query);
+    if (this.#overlays.length === 0) {
+      this.navigate(url, { replace: options.replace ?? true, scroll: false, focus: false });
+      return;
+    }
+    if (this.#pendingBack) {
+      // A closed sheet's entry is being removed; the current entry is not the open sheet's yet.
+      void this.#pendingBack.then(() => this.setQuery(query, options));
+      return;
+    }
+    history.replaceState(history.state, '', url);
+    const q = url.indexOf('?');
+    this.query = new URLSearchParams(q === -1 ? '' : url.slice(q + 1));
+    this.url = currentUrl();
+    this.#remember(false);
+    this.#pageUrl = url;
   }
 
   /**
@@ -259,11 +284,16 @@ class Router {
       return;
     }
     const top = this.#overlays.at(-1);
-    if (top?.pushed && entry.idx < this.#entry.idx) {
-      // Back while a sheet is open closes the sheet; the page stays (F-34).
-      this.#overlays.pop();
+    // A sheet's entry shares its page's key; a jump further back (history menu) lands on another page.
+    if (top?.pushed && entry.idx < this.#entry.idx && entry.key === this.#entry.key) {
+      // Back while a sheet is open closes the sheet; the page stays (F-34). A jump over several entries
+      // (history menu) closes every overlay it passed; one left open would step back again when it closes.
+      const passed = this.#overlays.splice(
+        Math.max(0, this.#overlays.length - (this.#entry.idx - entry.idx)),
+      );
       this.#entry = entry;
-      top.close();
+      this.#handOver();
+      for (const overlay of passed.reverse()) overlay.close();
       return;
     }
     this.#closeOverlaysSilently();
@@ -306,11 +336,22 @@ class Router {
   }
 
   #settle(): void {
+    this.#handOver();
     this.#dropStale = false;
     this.#ignorePops = 0;
     this.#resolveBack?.();
     this.#resolveBack = null;
     this.#pendingBack = null;
+  }
+
+  /** Gives the entry just landed on the URL that setQuery() set while overlays were open. */
+  #handOver(): void {
+    if (this.#pageUrl === null) return;
+    history.replaceState(this.#entry, '', this.#pageUrl);
+    this.url = currentUrl();
+    this.#remember(false);
+    // Below an overlay entry (a sheet over the editor's guard) lies another entry with the old URL.
+    if (!this.#entry.overlay) this.#pageUrl = null;
   }
 
   /** Records the current URL at its history position for previousPath(). */
@@ -324,6 +365,8 @@ class Router {
   }
 
   #closeOverlaysSilently(): void {
+    // The overlay entry becomes a page of its own or is left behind: nothing to hand over any more.
+    this.#pageUrl = null;
     const open = this.#overlays.splice(0);
     for (const overlay of open.reverse()) overlay.close();
   }

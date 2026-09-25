@@ -3,6 +3,8 @@
   // close button. Native modal <dialog>: focus stays inside, Escape closes (NF-11); the Android back
   // button and the iOS back gesture close it and keep the page (F-34, via router.pushOverlay).
   // Dragging the handle down closes it too; the close button is the visible alternative (NF-07).
+  // `panel` (≥ 1024 px, artboard tabletFilter): a side panel next to the list column instead, without
+  // scrim, handle or drag; a click outside (on the transparent backdrop), Escape and Back close it.
   // Render it conditionally ({#if open}<Sheet onclose={() => (open = false)}>…) — mount opens it.
   import { onMount, type Snippet } from 'svelte';
   import { de } from '../i18n/de.ts';
@@ -17,10 +19,15 @@
     onclose: () => void;
     /** Full height (filter sheet: 32 px below the top) instead of fitting the content. */
     full?: boolean;
+    /** Accessible name of the close button, e.g. „Filter schließen“. */
+    closeLabel?: string;
+    /** Side panel next to the list column (≥ 1024 px) instead of a bottom sheet. */
+    panel?: boolean;
     children: Snippet;
   }
 
-  let { title, meta, onclose, full = false, children }: Props = $props();
+  let { title, meta, onclose, full = false, closeLabel = de.common.close, panel = false, children }: Props =
+    $props();
 
   const titleId = $props.id();
   let dialog: HTMLDialogElement | undefined = $state();
@@ -51,7 +58,7 @@
   }
 
   function onpointerdown(event: PointerEvent): void {
-    if (event.target instanceof Element && event.target.closest('button')) return;
+    if (panel || (event.target instanceof Element && event.target.closest('button'))) return;
     dragStart = event.clientY;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   }
@@ -70,17 +77,24 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<dialog bind:this={dialog} class={['sheet', { full }]} aria-labelledby={titleId} {oncancel} onclick={onbackdrop}>
+<dialog
+  bind:this={dialog}
+  class={['sheet', { full, side: panel }]}
+  aria-labelledby={titleId}
+  {oncancel}
+  onclick={onbackdrop}
+>
   <div class="panel" style:transform={dragY > 0 ? `translateY(${dragY}px)` : undefined}>
     <!-- svelte-ignore a11y_no_static_element_interactions (drag gesture; the close button is the alternative, NF-07) -->
     <div class="grab" {onpointerdown} {onpointermove} {onpointerup} onpointercancel={onpointerup}>
-      <span class="handle" aria-hidden="true"></span>
+      {#if !panel}<span class="handle" aria-hidden="true"></span>{/if}
       <div class="head">
         <div class="titles">
           <h2 id={titleId} class="title-section">{title}</h2>
-          {#if meta}<span class="meta">{meta}</span>{/if}
+          <!-- The meta follows the content, e.g. the hits of the filter sheet while filters change. -->
+          {#if meta}<span class="meta" aria-live="polite">{meta}</span>{/if}
         </div>
-        <IconButton icon="close" label={de.common.close} onclick={onclose} />
+        <IconButton icon="close" label={closeLabel} onclick={onclose} />
       </div>
     </div>
     <div class="body">
@@ -176,6 +190,39 @@
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  /* Side panel (artboard tabletFilter): 400 px wide next to the 380 px list column (rail 88 + 316), 56 px
+     below the top, all corners round, no scrim; the body scrolls when the content is taller. */
+  .sheet.side {
+    inset: 56px auto auto calc(404px + var(--safe-left));
+    width: 400px;
+    max-width: none;
+    height: auto;
+    max-height: calc(100dvh - 80px);
+    margin: 0;
+  }
+
+  .sheet.side::backdrop {
+    background: transparent;
+  }
+
+  .side .panel {
+    gap: 12px;
+    max-height: calc(100dvh - 80px);
+    padding: 16px 20px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: 0 16px 40px var(--color-shadow);
+    animation: none;
+  }
+
+  .side .grab {
+    touch-action: auto;
+  }
+
+  .side .body {
+    gap: 12px;
   }
 
   @keyframes sheet-in {

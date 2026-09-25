@@ -4,7 +4,8 @@
   // Weitere Angaben; one column below 1024 px (tablet portrait centered, at most 720 px wide), two
   // columns from 1024 px as in the tablet artboard: at 600 px the right column would be 228 px narrow
   // and every ingredient row three lines high. The text mode (F-12) and the similar-recipe hint (F-45)
-  // follow in M5, tag autocomplete (F-18) in M4.
+  // follow in M5. Tags: chip input with autocomplete (TagInput, F-17, F-18); saving first adds the
+  // typed tag text (TagInput.commit()).
   // Photo (F-14): ImagePicker uploads right after the choice; saving waits for a running upload, a
   // failed one does not block it. A restored draft's photo is checked on the server (F-09 AK); ?foto=1
   // (the detail's "Foto hinzufügen") focuses "Foto aufnehmen".
@@ -33,7 +34,6 @@
   import { breakpoints } from '../lib/breakpoints.svelte.ts';
   import { browserStorage, draftKey, draftSync, pruneDrafts, readDraft, removeDraft } from '../lib/draft.ts';
   import {
-    addTags,
     applyField,
     buildRequest,
     cloneForm,
@@ -117,7 +117,6 @@
   let lastMap: FieldMap = { ingredientKeys: [], groupKeys: [], stepKeys: [] };
   let saving = $state(false);
   let titleTouched = $state(false);
-  let pendingTag = $state('');
   let moreOpen = $state(false);
   let dialog = $state.raw<DialogState | null>(null);
   let dialogBusy = $state(false);
@@ -131,6 +130,7 @@
   let formEl: HTMLFormElement | undefined = $state();
   let titleEl: HTMLInputElement | undefined = $state();
   let picker: ReturnType<typeof ImagePicker> | undefined = $state();
+  let tagInput: ReturnType<typeof TagInput> | undefined = $state();
 
   let leaving = false;
   let destroyed = false;
@@ -384,13 +384,6 @@
 
   // ---------------------------------------------------------------- saving
 
-  function commitPendingTag(): void {
-    if (pendingTag.trim() === '') return;
-    const result = addTags(form.tags, pendingTag);
-    form.tags = result.tags;
-    pendingTag = result.rejected.join(', ');
-  }
-
   async function save(options: { force?: boolean } = {}): Promise<void> {
     if (saving || !canSave) return;
     const upload = picker?.pending();
@@ -404,7 +397,8 @@
       await save(options);
       return;
     }
-    commitPendingTag();
+    // The typed, not yet added tag belongs to what is saved (F-17).
+    tagInput?.commit();
     if (failToast !== null) toast.dismiss(failToast);
     failToast = null;
     const sent = cloneForm(form);
@@ -856,11 +850,12 @@
   <div class="field">
     <FieldLabel for="{uid}-tags" text={deEditor.tags.label} />
     <TagInput
+      bind:this={tagInput}
       bind:tags={form.tags}
-      bind:pending={pendingTag}
       inputId="{uid}-tags"
       error={errors.tags}
       onundo={notifyUndo}
+      {announce}
     />
     {@render offer('tags')}
   </div>

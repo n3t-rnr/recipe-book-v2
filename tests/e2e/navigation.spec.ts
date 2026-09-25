@@ -4,7 +4,8 @@
 // - e2: the address of an opened recipe called directly and in a new tab; without a remembered profile;
 //   an unknown app path „Nicht gefunden“ (F-34).
 // - e3: stopped server → banner ≤ 3 s after „Aktualisieren“, list stays; „Erneut versuchen“ keeps the banner
-//   while the server is down and, after the restart, removes it and reloads the list (F-33, NF-09).
+//   while the server is down and, after the restart, removes it and reloads the list (F-33, NF-09). Since
+//   M4 the list also loads GET /tags (chip row): its failure keeps the chips, the reconnection reloads them.
 // - e4: Back (Android back button, iOS back gesture = history back) closes an open sheet first (F-34).
 // - e6: iPad portrait: two card columns, ingredients next to the steps (NF-08).
 // - e8: card images are sharp (≥ displayed width × min(DPR, 2)), never l, at most 2× (NF-06), on phones,
@@ -223,6 +224,9 @@ test('e3: gestoppter Server zeigt nach „Aktualisieren“ ≤ 3 s das Banner, �
   await page.goto(`${freshServer.url}/rezepte`);
   await expect(recipeLink(page, before.title)).toBeVisible();
   await expect(page.getByText('1 Rezept', { exact: true })).toBeVisible();
+  // The 10 start tags of the fresh server and „Alle Tags …“.
+  const chips = page.getByRole('group', { name: 'Nach Tags filtern' }).getByRole('button');
+  await expect(chips).toHaveCount(11);
 
   const banner = page
     .getByRole('alert')
@@ -234,9 +238,14 @@ test('e3: gestoppter Server zeigt nach „Aktualisieren“ ≤ 3 s das Banner, �
     predicate: (req) => new URL(req.url()).pathname === '/api/v1/recipes',
     timeout: 10_000,
   });
+  const tagsFailed = page.waitForEvent('requestfailed', {
+    predicate: (req) => new URL(req.url()).pathname === '/api/v1/tags',
+    timeout: 10_000,
+  });
   const tapped = Date.now();
   await page.getByRole('button', { name: 'Aktualisieren' }).click();
   await failed;
+  await tagsFailed;
   const failedAfter = Date.now() - tapped;
   // F-33 AK: the banner ≤ 3 s after the failed request.
   await expect(banner).toBeVisible({ timeout: 3_000 });
@@ -252,6 +261,7 @@ test('e3: gestoppter Server zeigt nach „Aktualisieren“ ≤ 3 s das Banner, �
   // The last list stays visible below the banner, without an error toast (F-33).
   await expect(recipeLink(page, before.title)).toBeVisible();
   await expect(page.getByText('1 Rezept', { exact: true })).toBeVisible();
+  await expect(chips).toHaveCount(11);
   await expect(page.getByText('Server nicht erreichbar – läuft der Rezepte-PC?')).toHaveCount(1);
 
   // „Erneut versuchen“ really asks the server: while it is still down, banner and list stay.
@@ -270,9 +280,17 @@ test('e3: gestoppter Server zeigt nach „Aktualisieren“ ≤ 3 s das Banner, �
   // Still there after the restart (nothing polls the server), so the tap below is what removes it.
   await expect(banner).toBeVisible();
   // Something changed while the list was offline: the reload after the retry must show it.
-  const after = await freshServer.api.createRecipe(profile.id, { title: 'Nach dem Neustart' });
+  const after = await freshServer.api.createRecipe(profile.id, {
+    title: 'Nach dem Neustart',
+    tags: ['Neustart'],
+  });
+  const tagsLoaded = page.waitForResponse(
+    (res) => new URL(res.url()).pathname === '/api/v1/tags' && res.ok(),
+  );
   await retry.click();
+  await tagsLoaded;
   await expect(banner).toHaveCount(0);
+  await expect(chips.first()).toHaveText('Neustart');
   await expect(recipeLink(page, after.title)).toBeVisible();
   await expect(recipeLink(page, before.title)).toBeVisible();
   await expect(page.getByText('2 Rezepte', { exact: true })).toBeVisible();

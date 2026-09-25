@@ -218,8 +218,17 @@ test('a7: gleich nach dem ersten Profil zeigt die leere Liste „Noch keine Reze
   await press(page.getByRole('button', { name: dl.profilePick.create }));
 
   await expect(page).toHaveURL(/\/rezepte$/);
-  await expect(page.getByRole('heading', { name: ds.list.emptyTitle })).toBeVisible();
+  const empty = page.getByRole('heading', { name: ds.list.emptyTitle });
+  await expect(empty).toBeVisible();
   await expect(page.getByText(ds.list.emptyText)).toBeVisible();
+  // F-20: the chip row offers the 10 start tags at once, above the empty state, and „Alle Tags …“.
+  const chips = page.getByRole('group', { name: ds.list.chips }).getByRole('button');
+  await expect(chips).toHaveCount(11);
+  await expect(chips.first()).toHaveText('Backen');
+  await expect(chips.last()).toHaveText(ds.list.allTags);
+  const chipsBottom = await chips.first().evaluate((el) => el.getBoundingClientRect().bottom);
+  const emptyTop = await empty.evaluate((el) => el.getBoundingClientRect().top);
+  expect(chipsBottom).toBeLessThan(emptyTop);
   const action = page.getByRole('link', { name: ds.list.emptyAction });
   await expect(action).toBeVisible();
 

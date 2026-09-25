@@ -4,7 +4,7 @@ Browser-based recipe app for the home LAN. One Node process on a Windows PC serv
 
 ## Current phase
 
-M0 (foundation), M2 (profiles and recipe core) and M3 (images, released by the user on 2026-09-25) are done; M4 (tags, search, filters, sorting) is in progress. The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). UI texts live in `client/src/i18n/` (`de.ts` for the entry chunk, `de-screens*.ts` and `de-editor.ts` for lazy chunks). Initial JS is at 33.1 of 38 KB (ADR 0004): keep new code in lazy chunks where possible and leave room for M5.
+M0 (foundation), M2 (profiles and recipe core) and M3 (images, released by the user on 2026-09-25) are done; M4 (tags, search, filters, sorting) is implemented and in the user's review. The design (direction C) was approved on 2026-09-23 (NF-16): build UI exactly after the approved artboards and tokens (`client/src/styles/tokens.css`); canvas link and fixed values in [docs/design/README.md](docs/design/README.md). UI texts live in `client/src/i18n/` (`de.ts` for the entry chunk, `de-screens*.ts` and `de-editor.ts` for lazy chunks). Initial JS is at 37.0 of 38 KB (ADR 0004) and the editor chunk at 29.5 of 30 KB: M5 must keep new code lazy and will likely need to split the editor chunk.
 
 Developer setup and commands: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
 

@@ -27,8 +27,10 @@ import {
   newForm,
   validationDetails,
 } from '../../client/src/lib/editor.ts';
-import { RecipeCreateInput } from '../../shared/schemas.ts';
+import { normalize } from '../../shared/normalize.ts';
+import { RecipeCreateInput, TagInput } from '../../shared/schemas.ts';
 import type { RecipeDetail } from '../../shared/types.ts';
+import { INVALID_TAG_NAMES, VALID_TAG_NAMES } from '../fixtures/tag-names.ts';
 
 function ing(amount: string, unit: string, name: string, note = ''): IngredientItem {
   return { ...emptyIngredient(), amount, unit, name, note };
@@ -475,6 +477,84 @@ describe('tags in the chip input (F-17)', () => {
       rejected: [long],
       error: 'Ein Tag darf höchstens 40 Zeichen lang sein.',
     });
+  });
+
+  it('keeps whole names whole: a picked tag with a comma stays one tag (F-17 allows punctuation)', () => {
+    const canonical = new Map([['salz, pfeffer', 'Salz, Pfeffer']]);
+    // Typed text: the comma separates (F-18 „Enter oder Komma übernimmt“).
+    expect(addTags([], 'Salz, Pfeffer', canonical).tags).toEqual(['Salz', 'Pfeffer']);
+    // A picked suggestion or „Häufig verwendet“ chip comes as a whole name.
+    expect(addTags(['Vegan'], ['Salz, Pfeffer'], canonical)).toEqual({
+      tags: ['Vegan', 'Salz, Pfeffer'],
+      rejected: [],
+      error: null,
+    });
+    // The same cleaning, duplicate and limit rules apply to whole names.
+    expect(addTags([], ['  salz,\u0007 pfeffer '], canonical).tags).toEqual(['Salz, Pfeffer']);
+    expect(addTags(['Salz, Pfeffer'], ['SALZ, PFEFFER']).tags).toEqual(['Salz, Pfeffer']);
+    const twenty = Array.from({ length: 20 }, (_, i) => `Tag ${i + 1}`);
+    expect(addTags(twenty, ['Salz, Pfeffer'])).toEqual({
+      tags: twenty,
+      rejected: ['Salz, Pfeffer'],
+      error: 'Höchstens 20 Tags pro Rezept',
+    });
+  });
+
+  it('shows the display name of a known tag at once: „süßspeise“ becomes „Süßspeise“ (F-17 AK2)', () => {
+    const canonical = new Map([
+      ['susspeise', 'Süßspeise'],
+      ['vegetarisch', 'Vegetarisch'],
+    ]);
+    for (const typed of ['süßspeise', 'Süssspeise', 'Süsspeise', 'SÜSSSPEISE']) {
+      expect(addTags([], typed, canonical), typed).toEqual({
+        tags: ['Süßspeise'],
+        rejected: [],
+        error: null,
+      });
+    }
+    // Unknown names stay as typed; a chip already present keeps its spelling.
+    expect(addTags(['vegetarisch'], 'Vegetarisch, Grillen', canonical).tags).toEqual([
+      'vegetarisch',
+      'Grillen',
+    ]);
+    expect(addTags([], ' Grill  abend ', canonical).tags).toEqual(['Grill abend']);
+    // The display name does not lift the limits: the 21st tag is refused, known or not.
+    const twenty = Array.from({ length: 20 }, (_, i) => `Tag ${i + 1}`);
+    expect(addTags(twenty, 'süßspeise', canonical)).toEqual({
+      tags: twenty,
+      rejected: ['süßspeise'],
+      error: 'Höchstens 20 Tags pro Rezept',
+    });
+  });
+
+  it('accepts every name the tag API accepts (tests/fixtures/tag-names.ts, NF-28)', () => {
+    for (const name of VALID_TAG_NAMES) {
+      expect(addTags([], name), name).toEqual({ tags: [name], rejected: [], error: null });
+    }
+    // All of them fit on one recipe: different keys, 7 of at most 20.
+    expect(addTags([], VALID_TAG_NAMES.join(',')).tags).toEqual([...VALID_TAG_NAMES]);
+  });
+
+  it('never passes a name on that the tag API refuses: dropped, cleaned up or rejected with a message', () => {
+    for (const name of INVALID_TAG_NAMES) {
+      const result = addTags([], name);
+      for (const tag of result.tags) {
+        expect(TagInput.safeParse({ name: tag }).success, JSON.stringify(tag)).toBe(true);
+        expect(normalize(tag), JSON.stringify(tag)).not.toBe('');
+      }
+    }
+    // 41 characters: rejected with the message, the field keeps the text.
+    expect(addTags([], 'x'.repeat(41))).toEqual({
+      tags: [],
+      rejected: ['x'.repeat(41)],
+      error: 'Ein Tag darf höchstens 40 Zeichen lang sein.',
+    });
+    // Tab and line feed become spaces: the chip holds a valid name.
+    expect(addTags([], 'Tab\u0009Tag').tags).toEqual(['Tab Tag']);
+    expect(addTags([], 'Zeile\u000AUmbruch').tags).toEqual(['Zeile Umbruch']);
+    // Other control characters are invisible: dropped, so a pasted BEL never reaches the server.
+    expect(addTags([], '\u0007')).toEqual({ tags: [], rejected: [], error: null });
+    expect(addTags([], 'Gril\u0000len, a \u001B b\u007F').tags).toEqual(['Grillen', 'a b']);
   });
 });
 

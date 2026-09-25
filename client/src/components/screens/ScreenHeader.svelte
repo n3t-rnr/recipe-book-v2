@@ -2,6 +2,8 @@
   // Header of the main screens (generator phoneHeader): screen title, optional "Aktualisieren" (F-34)
   // and, on phones and tablets portrait, the avatar for the profile switch (F-03); from 1024 px the
   // avatar sits in the rail. `compact`: list column next to the detail (30 px title, artboard TabletQuer).
+  // It stays above the list's sticky search row, whose band for the iOS status bar reaches up into the
+  // header (standalone mode, SearchBar.svelte).
   import { de } from '../../i18n/de.ts';
   import { breakpoints } from '../../lib/breakpoints.svelte.ts';
   import AvatarButton from '../AvatarButton.svelte';
@@ -32,6 +34,8 @@
 
 <style>
   .header {
+    position: relative;
+    z-index: 21;
     display: flex;
     align-items: center;
     justify-content: space-between;

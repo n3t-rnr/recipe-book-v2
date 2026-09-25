@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { df } from '../../client/src/i18n/de-screens-filter.ts';
 import { dl } from '../../client/src/i18n/de-screens-lazy.ts';
 
 const SRC = fileURLToPath(new URL('../../client/src/', import.meta.url));
@@ -88,6 +89,126 @@ describe('recipe list (artboard TabletQuer)', () => {
     const title = rule('components/CompactRow.svelte', '.title');
     expect(title).toMatch(/-webkit-line-clamp:\s*2/);
     expect(title).toMatch(/overflow:\s*hidden/);
+  });
+});
+
+describe('search row, count row and filter sheet (Kap. 6.3, F-21 to F-26)', () => {
+  const search = markup('components/screens/SearchBar.svelte');
+
+  it('is a search landmark with a search field of Kap. 6.3 (type, enter key, 200 characters, label)', () => {
+    expect(search).toMatch(/<form class="search-row" role="search" \{onsubmit\}>/);
+    const input = search.slice(search.indexOf('<input'), search.indexOf('/>', search.indexOf('<input')));
+    expect(input).toContain('type="search"');
+    expect(input).toContain('enterkeyhint="search"');
+    // Longer text would not survive the URL (list-query.ts cuts q to LIMITS.query).
+    expect(input).toContain('maxlength={LIMITS.query}');
+    expect(input).toContain('aria-label={ds.list.search}');
+    expect(input).toContain('placeholder={ds.list.searchPlaceholder}');
+    expect(rule('components/screens/SearchBar.svelte', 'input')).toMatch(/font-size:\s*1rem/);
+  });
+
+  it('names the filter button with the number of active filters and marks it as opening a dialog', () => {
+    const button = search.slice(search.indexOf('class="filter"'), search.indexOf('</button>'));
+    expect(button).toContain('aria-label={ds.list.filter(filterCount)}');
+    expect(button).toContain('aria-haspopup="dialog"');
+    expect(button).toContain('aria-expanded={expanded}');
+    expect(button).toMatch(/<span class="badge" aria-hidden="true">\{filterCount\}<\/span>/);
+  });
+
+  it('keeps the search row in view below the offline banner (Kap. 6.3 „fixiertes Suchfeld“, NF-08)', () => {
+    const row = rule('components/screens/SearchBar.svelte', '.search-row');
+    expect(row).toMatch(/position:\s*sticky/);
+    expect(row).toMatch(/top:\s*var\(--banner-h, 0px\)/);
+    // Focused cards scroll below it, not behind it (NF-11).
+    expect(read('routes/RecipeList.svelte')).toMatch(
+      /:global\(html:has\(\.search-row\)\),\s*:global\(\.list-pane:has\(\.search-row\)\)\s*\{\s*scroll-padding-top:\s*calc\(var\(--banner-h, 0px\) \+ var\(--safe-top\) \+ 72px\);/,
+    );
+  });
+
+  it('announces only the count text, not the sort button next to it', () => {
+    const list = markup('routes/RecipeList.svelte');
+    const open = '<p bind:this={countLine} class="count" aria-live="polite" tabindex="-1">';
+    const start = list.indexOf(open);
+    expect(start).toBeGreaterThan(-1);
+    const region = list.slice(start + open.length, list.indexOf('</p>', start));
+    expect(region).not.toContain('<');
+    expect(region).toContain('ds.list.countOf(total, totalAll)');
+    expect(list.slice(list.indexOf('</p>', start))).toMatch(/^<\/p>\s*<Button/);
+  });
+
+  it('reads the unfiltered total of list snapshots from before M4 as their total (amendment 22)', () => {
+    const list = read('routes/RecipeList.svelte');
+    expect(list).toContain('saved ? (saved.totalAll ?? saved.total) : 0');
+    expect(list).toContain('totalAll = data.totalAll ?? data.total;');
+    expect(list).toContain('show(snapshot, filter);');
+  });
+
+  it('keys the chip row by tag id and switches a chip tapped in the row in place (F-24, NF-07)', () => {
+    const row = markup('components/screens/TagChipRow.svelte');
+    // Sorted by the active tags of the last state from outside the row; each chip shows the current state.
+    expect(row).toMatch(/\{#each chipRow\(list, basis\) as chip \(chip\.tag\.id\)\}/);
+    expect(row).toContain('active={active.includes(chip.tag.id)}');
+    const script = read('components/screens/TagChipRow.svelte');
+    // Kept while the active tags are, by value, the ones the row made (a recipe opened next to the list
+    // parses the same tags into a new array).
+    expect(script).toContain(
+      'kept && kept.after === active.join() && kept.list === list ? kept.basis : active',
+    );
+    expect(script).toMatch(
+      /const from = basis;\s*ontoggle\(id\);[\s\S]{0,120}kept = \{ basis: from, after: active\.join\(\), list \};/,
+    );
+    // A new order from elsewhere starts the row at its beginning, where the active tags are.
+    expect(script).toMatch(/const lead = \$derived\(basis\.join\(\)\);/);
+    expect(script).toMatch(/\$effect\(\(\) => \{\s*void lead;\s*if \(row\) row\.scrollLeft = 0;\s*\}\);/);
+    expect(row).toContain('<div bind:this={row} class="chips" role="group"');
+  });
+
+  it('puts the focus after the empty result into the search field by key, on the count line by tap (NF-11)', () => {
+    expect(read('routes/RecipeList.svelte')).toMatch(
+      /if \(event\.detail === 0\) searchBar\?\.focus\(\);\s*else countLine\?\.focus\(\{ preventScroll: true \}\);/,
+    );
+    const noHits = markup('components/screens/NoHits.svelte');
+    expect(noHits).toContain('onclick={(event) => onsuggest(suggestion, event)}');
+    expect(noHits).toContain('onclick={onreset}');
+  });
+
+  it('opens the filter sheet from „Alle Tags …“ on the heading of the tags, not in their search field (NF-11)', () => {
+    expect(read('components/screens/FilterSheet.svelte')).toContain(
+      "else if (focus === 'tags') tagsLabel?.focus();",
+    );
+    expect(markup('components/screens/FilterSheet.svelte')).toContain(
+      '<p bind:this={tagsLabel} id="{id}-tags" class="label" tabindex="-1">{df.tags}</p>',
+    );
+  });
+
+  it('offers no favourites, minimum rating or rating sorts in the filter sheet before M5 (F-25, F-43, F-44)', () => {
+    const sheet = read('components/screens/FilterSheet.svelte');
+    const texts = JSON.stringify(df);
+    for (const word of ['Favorit', 'Bewertung', 'Mindest', 'Zuletzt geändert']) {
+      expect(texts, word).not.toContain(word);
+      expect(markup('components/screens/FilterSheet.svelte'), word).not.toContain(word);
+    }
+    expect(sheet).not.toMatch(/role="switch"|minRating|fav\b|'rating'|'myRating'|'updated'/);
+    // The sort options are those of F-26 only.
+    expect(sheet).toMatch(/\['relevance', 'newest', 'title'\] : \['newest', 'title'\]/);
+  });
+
+  it('gives the filter sheet its own close label and the side panel the artboard values (tabletFilter)', () => {
+    const sheet = read('components/Sheet.svelte');
+    expect(sheet).toMatch(/closeLabel = de\.common\.close/);
+    expect(markup('components/Sheet.svelte')).toContain(
+      '<IconButton icon="close" label={closeLabel} onclick={onclose} />',
+    );
+    expect(markup('components/screens/FilterSheet.svelte')).toContain('closeLabel={df.close}');
+    const panel = rule('components/Sheet.svelte', '.sheet.side');
+    expect(panel).toMatch(/inset:\s*56px auto auto calc\(404px \+ var\(--safe-left\)\)/);
+    expect(panel).toMatch(/width:\s*400px/);
+    const surface = rule('components/Sheet.svelte', '.side .panel');
+    expect(surface).toMatch(/gap:\s*12px/);
+    expect(surface).toMatch(/padding:\s*16px 20px 12px/);
+    expect(surface).toMatch(/box-shadow:\s*0 16px 40px var\(--color-shadow\)/);
+    expect(rule('components/Sheet.svelte', '.side .body')).toMatch(/gap:\s*12px/);
+    expect(rule('components/Sheet.svelte', '.sheet.side::backdrop')).toMatch(/background:\s*transparent/);
   });
 });
 

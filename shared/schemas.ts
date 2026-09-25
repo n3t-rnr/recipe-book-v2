@@ -88,3 +88,11 @@ export type RecipeUpdateInput = z.infer<typeof RecipeUpdateInput>;
 
 /** The editable part shared by create and update (used by the editor form). */
 export type RecipeFields = Omit<RecipeCreateInput, 'createKey'>;
+
+/** POST /tags and PATCH /tags/:id (Kap. 7.6): the same name rules as a recipe's tags (F-17). */
+export const TagInput = z.object({ name: line(1, LIMITS.tagName) });
+export type TagInput = z.infer<typeof TagInput>;
+
+/** POST /tags/:id/merge (Kap. 7.6, F-19). */
+export const TagMergeInput = z.object({ intoTagId: z.int().check(z.gte(1)) });
+export type TagMergeInput = z.infer<typeof TagMergeInput>;

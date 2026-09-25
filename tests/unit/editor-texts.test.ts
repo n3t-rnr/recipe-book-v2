@@ -48,6 +48,22 @@ describe('de-editor.ts wording (NF-10 AK)', () => {
     expect(deEditor.photo.uploading(72)).toBe('Wird hochgeladen … 72 %');
   });
 
+  it('uses the tag texts of F-17, F-18 and the artboard tagEditor()', () => {
+    expect(deEditor.tags.placeholder).toBe('Tag hinzufügen …');
+    expect(deEditor.tags.frequent).toBe('Häufig verwendet');
+    expect(deEditor.tags.suggestions).toBe('Vorschläge');
+    expect(deEditor.tags.hint).toBe(
+      'Enter oder Komma fügt den Tag hinzu. Mit den Pfeiltasten wählst du einen Vorschlag.',
+    );
+    // A suggestion reads „Vegetarisch, 12 Rezepte“ (the chip shows „Vegetarisch 12“, F-18 AK1).
+    expect(deEditor.tags.option('Vegetarisch', 12)).toBe('Vegetarisch, 12 Rezepte');
+    expect(deEditor.tags.option('Vegan', 1)).toBe('Vegan, 1 Rezept');
+    expect(deEditor.tags.option('Suppe', 0)).toBe('Suppe, 0 Rezepte');
+    expect(deEditor.tags.add('Schnell')).toBe('Schnell hinzufügen');
+    expect(deEditor.tags.added('Süßspeise')).toBe('Tag „Süßspeise“ hinzugefügt');
+    expect(deEditor.tags.limit(20)).toBe('Höchstens 20 Tags pro Rezept');
+  });
+
   it('lists the unit suggestions of F-10', () => {
     expect(deEditor.unitSuggestions).toEqual([
       'g',

@@ -25,6 +25,39 @@ export interface TagRef {
   name: string;
 }
 
+/** A tag with its usage count (GET /tags, F-19, F-20). */
+export interface TagCount extends TagRef {
+  /** active recipes using the tag (trash excluded) */
+  count: number;
+}
+
+/** GET /tags: ordered by count descending, then name key, name and id; unused tags come last. */
+export interface TagsResponse {
+  tags: TagCount[];
+  /** meta.data_revision, equals X-Data-Revision */
+  revision: number;
+}
+
+/** POST /tags (201 new, 200 existing key) and PATCH /tags/:id. */
+export interface TagResponse {
+  tag: TagCount;
+}
+
+/** POST /tags/:id/merge. */
+export interface TagMergeResponse {
+  tag: TagCount;
+  /** active recipes that carried the source tag */
+  movedRecipes: number;
+}
+
+/** details of 409 TAG_EXISTS on PATCH /tags/:id (F-19): the tag that already has the new name. */
+export interface TagExistsDetails {
+  targetId: number;
+  targetName: string;
+  /** active recipes of the renamed tag */
+  affectedRecipes: number;
+}
+
 /** Image URLs point to /media/<fileKey>-<variant>.webp (M3). */
 export interface CardImage {
   urls: { s: string; m: string };
@@ -63,7 +96,14 @@ export interface RecipeListResponse {
   items: RecipeCard[];
   nextCursor: string | null;
   total: number;
+  /** Omitted when there is no suggestion, never sent as undefined. */
   didYouMean?: string;
+}
+
+/** GET /recipes from M4 on; RecipeListResponse stays unchanged as the base type. */
+export interface RecipeListPage extends RecipeListResponse {
+  /** all active recipes, for '14 von 38 Rezepten' */
+  totalAll: number;
 }
 
 export interface IngredientDetail {

@@ -13,9 +13,14 @@
 //        editor's inverted step numbers. Amount and unit fields of the editor show their placeholder
 //        and every suggested unit in full, also while focused.
 // Also the Muss requirements that no checklist item names:
-//   NF-08 – no horizontal scrolling at 360, 390, 768, 1024 and 1440 px on every screen built so far.
+//   NF-08 – no horizontal scrolling at 360, 390, 768, 1024 and 1440 px on every screen built so far (the
+//           chip row of the list scrolls on its own); the offline banner and the sticky search row never
+//           overlap (M4, amendment 5).
 //   NF-07 – every visible button, link and form control has a hit area ≥ 44 × 44 px (links in running
-//           text excepted), kitchen actions (FAB, Speichern) ≥ 48 px. Heart and stars follow in M5.
+//           text excepted), kitchen actions (FAB, Speichern) ≥ 48 px, also in the filter sheet and panel.
+//           Heart and stars follow in M5.
+//   NF-11 – a card focused with the keyboard is always fully below the sticky search row (M4).
+// M4 adds the list without hits, the filtered list (active chip) and the filter sheet to the sweeps.
 // Token level coverage stays in Vitest: tests/unit/contrast.test.ts (NF-13 for every token pair in both
 // modes, identical dark blocks) and tests/api/static.test.ts (the CSP carries the theme script hash).
 //
@@ -27,6 +32,8 @@
 import type { Locator, Page, Route } from '@playwright/test';
 import { de } from '../../client/src/i18n/de.ts';
 import { deEditor } from '../../client/src/i18n/de-editor.ts';
+import { ds } from '../../client/src/i18n/de-screens.ts';
+import { df } from '../../client/src/i18n/de-screens-filter.ts';
 import { dl } from '../../client/src/i18n/de-screens-lazy.ts';
 import type { Profile, RecipeDetail } from '../../shared/types.ts';
 import { smallJpeg } from '../helpers/images.ts';
@@ -89,11 +96,12 @@ function approvedLight(surface: Surface): boolean {
   const accent = sameColor(color, COLORS.moonstone) || sameColor(color, COLORS.vanilla);
   if (accent) return sameColor(text, COLORS.raisin);
   if (surface.what.startsWith('span.avatar')) return true;
-  return (
-    /^span\.number "\d+"$/.test(surface.what) &&
-    sameColor(color, COLORS.linen) &&
-    sameColor(text, COLORS.raisin)
+  // Inverted like the step numbers: the list's filter button and the checked segment of the filter
+  // sheet, --color-text surface with --color-bg icon or text (generator searchRow(), segmented()).
+  const inverted = /^span\.number "\d+"$|^button\.filter "Filter|^button\.option\.checked "/.test(
+    surface.what,
   );
+  return inverted && sameColor(color, COLORS.linen) && sameColor(text, COLORS.raisin);
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -296,6 +304,8 @@ interface Seed {
   profile: Profile;
   recipe: RecipeDetail;
   trashed: RecipeDetail;
+  /** Id of the recipe's tag „Schwäbisch“ (filtered list, M4). */
+  tagId: number;
 }
 
 /** A profile, a full recipe without photo and a recipe in the trash, all with unique names. */
@@ -324,7 +334,8 @@ async function seed(server: AppServer): Promise<Seed> {
   const trashed = await server.api.createRecipe(profile.id, { title: unique('Alter Auflauf') });
   const res = await server.api.request('DELETE', `/api/v1/recipes/${trashed.id}`, { profileId: profile.id });
   expect(res.status, 'Rezept in den Papierkorb legen').toBeLessThan(300);
-  return { profile, recipe, trashed };
+  const tagId = await server.api.tagIdByName('Schwäbisch');
+  return { profile, recipe, trashed, tagId };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -693,6 +704,28 @@ const SCREENS: readonly Screen[] = [
       await expect(page.getByRole('img', { name: /QR-Code für/ })).toBeVisible();
     },
   },
+  {
+    // M4: search without hits (F-23, F-33), a long word so nothing matches and nothing is suggested.
+    name: 'Suche ohne Treffer',
+    path: () => '/rezepte?q=Qwxzvykjbfgh',
+    async ready(page) {
+      await expect(page.getByRole('heading', { name: 'Nichts gefunden für ‚Qwxzvykjbfgh‘' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Rezept ‚Qwxzvykjbfgh‘ anlegen' })).toBeVisible();
+    },
+  },
+  {
+    // M4: a tag filter (F-24): the active chip on the primary surface with its check icon.
+    name: 'Gefilterte Liste',
+    path: (data) => `/rezepte?tags=${data.tagId}`,
+    async ready(page, data) {
+      await expect(page.getByRole('link', { name: data.recipe.title }).first()).toBeVisible();
+      await expect(
+        page
+          .getByRole('group', { name: ds.list.chips })
+          .getByRole('button', { name: 'Schwäbisch', exact: true }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    },
+  },
 ];
 
 async function open(page: Page, server: AppServer, data: Seed, screen: Screen): Promise<void> {
@@ -778,6 +811,16 @@ for (const size of WIDTHS) {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: de.profile.switchTitle })).toBeHidden();
 
+    // Filter sheet (phone, tablet portrait) or side panel (≥ 1024 px), with an active tag.
+    await page.goto(`${server.url}/rezepte?tags=${data.tagId}`);
+    await page.getByRole('button', { name: ds.list.filter(1), exact: true }).click();
+    const filter = page.getByRole('dialog', { name: df.title });
+    await expect(filter.getByRole('button', { name: /^Schwäbisch/ })).toBeVisible();
+    await settle(page);
+    await collect('Filter-Sheet');
+    await page.keyboard.press('Escape');
+    await expect(filter).toBeHidden();
+
     await open(page, server, data, SCREENS[3] as Screen);
     await page.getByRole('textbox', { name: deEditor.title.label }).fill('Nur kurz');
     await page.getByRole('button', { name: deEditor.cancel }).click();
@@ -803,6 +846,143 @@ test('NF-07: Küchenaktionen (FAB „Neues Rezept“, „Speichern“) sind mind
   const save = await page.getByRole('button', { name: deEditor.save }).boundingBox();
   expect(save?.width ?? 0).toBeGreaterThanOrEqual(48);
   expect(save?.height ?? 0).toBeGreaterThanOrEqual(48);
+});
+
+test.describe('Dark Mode, Filter', () => {
+  test.use({ colorScheme: 'dark' });
+
+  test('e9: Filter-Sheet bzw. -Panel mit aktivem Tag ist dunkel und gut lesbar @phone @tablet @desktop', async ({
+    page,
+    server,
+  }) => {
+    const data = await seed(server);
+    await useProfile(page, data.profile.id);
+    await page.goto(`${server.url}/rezepte?tags=${data.tagId}`);
+    await page.getByRole('button', { name: ds.list.filter(1), exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: df.title });
+    const active = sheet.getByRole('button', { name: /^Schwäbisch/ });
+    await expect(active).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByRole('radio', { name: df.modes.all })).toHaveAttribute('aria-checked', 'true');
+    expect(await background(sheet.locator(':scope > *').first()), 'Fläche des Sheets').toEqual(
+      COLORS.surfaceRaisedDark,
+    );
+    await expectDarkAndReadable(page, 'e9-filter-sheet');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// M4: the sticky search row next to the offline banner and the keyboard focus
+// ---------------------------------------------------------------------------------------------------
+
+/** Twelve recipes of a new profile and its list, so the page (or the list column) scrolls. */
+async function longList(page: Page, server: AppServer): Promise<void> {
+  const profile = await server.api.createProfile(unique('Lang'));
+  for (let i = 1; i <= 12; i++)
+    await server.api.createRecipe(profile.id, { title: unique(`Langrezept ${i}`) });
+  await useProfile(page, profile.id);
+  await page.goto(`${server.url}/rezepte`);
+  await expect(page.getByRole('main').getByRole('listitem').nth(11)).toBeAttached();
+}
+
+function searchRowBox(page: Page): Promise<{ top: number; bottom: number }> {
+  return page.evaluate(() => {
+    const r = document.querySelector('.search-row')?.getBoundingClientRect();
+    return { top: r?.top ?? -1, bottom: r?.bottom ?? -1 };
+  });
+}
+
+/** Scrolls what scrolls the list: the page below 1024 px, the list column from 1024 px. */
+async function scrollList(page: Page, y: number): Promise<void> {
+  await page.evaluate((top) => {
+    const pane = document.querySelector('.list-pane');
+    if (pane) pane.scrollTop = top;
+    else window.scrollTo(0, top);
+  }, y);
+}
+
+test('NF-08: das Offline-Banner und die fixierte Suchzeile überlappen sich nie, auch beim Scrollen @phone @tablet @desktop', async ({
+  page,
+  server,
+}) => {
+  await longList(page, server);
+  const sizes = test.info().project.name === 'tablet-webkit' ? [null, { width: 768, height: 1024 }] : [null];
+  for (const size of sizes) {
+    if (size) {
+      await page.setViewportSize(size);
+      await page.reload();
+    }
+    await page.route('**/api/v1/**', (route) => route.abort('connectionrefused'));
+    await page.getByRole('button', { name: de.common.refresh }).click();
+    const banner = page.getByRole('alert').filter({ hasText: de.connection.offline });
+    await expect(banner).toBeVisible();
+    for (const y of [0, 200, 1_500]) {
+      await scrollList(page, y);
+      await settle(page);
+      const bannerBox = await banner.boundingBox();
+      const row = await searchRowBox(page);
+      const where = `${page.viewportSize()?.width} px, ${y} px gescrollt`;
+      expect(bannerBox, where).not.toBeNull();
+      expect(row.top, `${where}: Suchzeile unter dem Banner`).toBeGreaterThanOrEqual(
+        (bannerBox?.y ?? 0) + (bannerBox?.height ?? 0) - 0.5,
+      );
+      await expect(banner, where).toBeInViewport();
+      await expect(
+        page.getByRole('searchbox', { name: ds.list.search, exact: true }),
+        where,
+      ).toBeInViewport();
+      await snap(page, `nf08-banner-suchzeile-${page.viewportSize()?.width}-${y}`);
+    }
+    await page.unroute('**/api/v1/**');
+    await banner.getByRole('button', { name: de.common.retry }).click();
+    await expect(banner).toHaveCount(0);
+    // Without the banner the row sticks to the top again.
+    await scrollList(page, 1_500);
+    await expect.poll(async () => Math.round((await searchRowBox(page)).top)).toBeLessThanOrEqual(0);
+  }
+});
+
+test('NF-11: eine per Tastatur fokussierte Karte liegt ganz unter der fixierten Suchzeile, vorwärts und rückwärts @phone @tablet @desktop', async ({
+  page,
+  server,
+  browserName,
+}) => {
+  test.skip(
+    browserName === 'webkit',
+    'WebKit springt mit Tab nicht auf Links (Systemeinstellung), Tastaturtest in Chromium',
+  );
+  await longList(page, server);
+  // The newest 12 are this test's recipes (the worker's tests run one after the other).
+  const links = page.getByRole('main').getByRole('list').first().getByRole('link');
+  const count = 12;
+  // The sort button is the last control before the first card.
+  await page.getByRole('button', { name: /^Sortierung: / }).focus();
+  const check = async (step: string): Promise<void> => {
+    const place = await page.evaluate(() => {
+      const item = document.activeElement?.closest('li')?.getBoundingClientRect();
+      const row = document.querySelector('.search-row')?.getBoundingClientRect();
+      const pane = document.querySelector('.list-pane')?.getBoundingClientRect();
+      return {
+        top: item?.top ?? -1,
+        bottom: item?.bottom ?? -1,
+        row: row?.bottom ?? -1,
+        end: pane ? pane.bottom : window.innerHeight,
+      };
+    });
+    expect(place.top, `${step}: Karte beginnt unter der Suchzeile`).toBeGreaterThanOrEqual(place.row - 0.5);
+    expect(place.bottom, `${step}: Karte endet im Sichtbereich`).toBeLessThanOrEqual(place.end + 0.5);
+  };
+  for (let i = 1; i <= count; i++) {
+    await page.keyboard.press('Tab');
+    await expect(links.nth(i - 1)).toBeFocused();
+    await settle(page);
+    await check(`Tab ${i}`);
+  }
+  for (let i = count - 1; i >= 1; i--) {
+    await page.keyboard.press('Shift+Tab');
+    await expect(links.nth(i - 1)).toBeFocused();
+    await settle(page);
+    await check(`Umschalt+Tab ${i}`);
+  }
 });
 
 test('e9: im Editor sind Menge und Einheit vollständig lesbar – Platzhalter einer leeren Zeile und alle vorgeschlagenen Einheiten @phone @tablet @desktop', async ({

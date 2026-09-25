@@ -25,6 +25,8 @@
      */
     busy?: boolean;
     onclick?: ((event: MouseEvent) => void) | undefined;
+    /** Early signal of a tap, e.g. to preload the sheet the button opens. */
+    onpointerdown?: ((event: PointerEvent) => void) | undefined;
     children: Snippet;
     class?: string;
     /** The rendered <button> or <a>, e.g. to give it the focus back after a form closes. */
@@ -44,6 +46,7 @@
     disabled = false,
     busy = false,
     onclick,
+    onpointerdown,
     children,
     class: className = '',
     element = $bindable(),
@@ -71,7 +74,7 @@
 {/snippet}
 
 {#if href && !disabled}
-  <a bind:this={element} class={classes} {href} {onclick}>{@render content()}</a>
+  <a bind:this={element} class={classes} {href} {onclick} {onpointerdown}>{@render content()}</a>
 {:else}
   <button
     bind:this={element}
@@ -81,6 +84,7 @@
     aria-disabled={busy || undefined}
     aria-busy={busy || undefined}
     onclick={busy ? ignore : onclick}
+    {onpointerdown}
   >
     {@render content()}
   </button>

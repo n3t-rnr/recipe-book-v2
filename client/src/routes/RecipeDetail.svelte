@@ -25,6 +25,7 @@
   import { dl } from '../i18n/de-screens-lazy.ts';
   import { ApiError, del, errorMessage, get, isAbortError, post } from '../lib/api.ts';
   import { breakpoints } from '../lib/breakpoints.svelte.ts';
+  import { listFilterFor, toUrlQuery } from '../lib/list-query.ts';
   import { cachedCard } from '../lib/recipes.ts';
   import { router } from '../lib/router.svelte.ts';
   import { paths } from '../lib/routes.ts';
@@ -105,12 +106,19 @@
   });
 
   $effect(() => {
+    // Also after a filter change in the list column (≥ 1024 px): the router sets the route's own title then.
+    void router.url;
     if (title !== '') document.title = `${title} – ${de.appName}`;
   });
 
+  /** The list this recipe was opened from, with its filter (F-34): the URL's at ≥ 1024 px, else the last shown. */
+  function listHref(): string {
+    return paths.recipes(toUrlQuery(listFilterFor('recipe', router.query)));
+  }
+
   /** Back button top left (F-34): history back, or the list after a deep link. */
   function back(): void {
-    router.back(paths.recipes());
+    router.back(listHref());
   }
 
   /** Resolves once the closed menu sheet has removed its history entry (or after a short wait). */
@@ -140,8 +148,8 @@
       });
       await closed;
       if (!shown) return;
-      if (breakpoints.wide) router.navigate(paths.recipes(), { replace: true });
-      else router.back(paths.recipes());
+      if (breakpoints.wide) router.navigate(listHref(), { replace: true });
+      else router.back(listHref());
     } catch (err) {
       if (err instanceof ApiError && err.code === 'IN_TRASH') void load();
       else toast.error(err, moveToTrash);
@@ -307,7 +315,7 @@
           text={dl.detail.notFoundText}
           actionLabel={de.notFound.toList}
           actionIcon="book"
-          actionHref={paths.recipes()}
+          actionHref={listHref()}
         />
       {:else if view.kind === 'failed'}
         <EmptyState

@@ -45,6 +45,23 @@
   $effect(() => (listEl ? router.registerScrollArea('list', listEl) : undefined));
   $effect(() => (detailEl ? router.registerScrollArea('detail', detailEl) : undefined));
 
+  // The sticky banner's height (Kap. 6.6 „Banner oben“): the list's sticky search row sits below it, so
+  // nothing overlaps (NF-08). On <html>, where the page's scroll-padding reads it too. In two panes the
+  // banner does not stick and the list column scrolls on its own: 0 there.
+  let bannerEl: HTMLElement | undefined = $state();
+  $effect(() => {
+    const el = twoPane ? undefined : bannerEl;
+    const root = document.documentElement.style;
+    if (!el) return root.setProperty('--banner-h', '0px');
+    // A ResizeObserver of its own: bind:offsetHeight would add Svelte's size binding to the entry (NF-01).
+    const observer = new ResizeObserver(() => root.setProperty('--banner-h', `${el.offsetHeight}px`));
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.setProperty('--banner-h', '0px');
+    };
+  });
+
   // Keyboard and screen reader users land at the start of the new view after a navigation (NF-11).
   // Inside the two-pane layout the focus stays in the list, so choosing the next recipe is one key away.
   $effect(() => {
@@ -88,9 +105,9 @@
         anchorOffset = item.offsetTop - top;
       }
       void tick().then(() => {
-        const row = document.querySelector<HTMLElement>(
-          onDetail ? selected : `main li:has([href="${anchorPath}"])`,
-        );
+        // Rows at ≥ 1024 px carry the list filter in their link, cards do not (/rezepte/5?tags=3 vs /rezepte/5).
+        const anchor = `[href="${anchorPath}"], [href^="${anchorPath}?"]`;
+        const row = document.querySelector<HTMLElement>(onDetail ? selected : `main li:has(${anchor})`);
         if (row) (next ? listEl : window)?.scrollTo(0, row.offsetTop - anchorOffset);
       });
     });
@@ -115,7 +132,7 @@
 
   <main bind:this={mainEl} class="main" tabindex="-1">
     {#if banner}
-      <div class="banner-slot">{@render banner()}</div>
+      <div class="banner-slot" bind:this={bannerEl}>{@render banner()}</div>
     {/if}
     {#if twoPane}
       <div class="panes">

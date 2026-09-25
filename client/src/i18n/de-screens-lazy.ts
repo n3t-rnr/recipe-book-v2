@@ -1,7 +1,7 @@
 /**
  * German texts of the lazily loaded screens (NF-10): profile choice, recipe detail, trash, "Mehr",
- * connect, status, tags. Same rules as de.ts (informal "du", typographic dashes and quotes). Functions build texts
- * with numbers, names or dates.
+ * connect, status. The tag page has its own file (de-screens-tags.ts). Same rules as de.ts (informal
+ * "du", typographic dashes and quotes). Functions build texts with numbers, names or dates.
  */
 
 function plural(n: number, one: string, many: string): string {
@@ -121,10 +121,5 @@ export const dl = {
     hours: (h: number, m: number) => `${h} h ${m} min`,
     days: (d: number, h: number) => `${plural(d, 'Tag', 'Tage')} ${h} h`,
     loading: 'Status wird geladen',
-  },
-
-  tags: {
-    emptyTitle: 'Hier erscheinen deine Tags',
-    emptyText: 'Tags vergibst du beim Bearbeiten eines Rezepts.',
   },
 } as const;

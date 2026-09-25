@@ -1,37 +1,29 @@
 /**
  * Stands in for Vite's helper of dynamic imports (vite/preload-helper; vite.config.ts swaps it in for the
- * build, NF-01). Before a lazily loaded chunk runs, its stylesheets and the shared chunks it imports load
- * in parallel with it, each once. Vite's own helper also covers a relative base, CSP nonces, browsers
- * without modulepreload and the vite:preloadError event; this app has none of them (base "/", no nonce,
- * NF-17 browsers support modulepreload), and they cost about 0.35 KB gzip of initial JS.
+ * build, NF-01). Before a lazily loaded chunk runs, the shared chunks it imports start loading in parallel
+ * with it, each once, as <link rel="modulepreload">. The app has a single stylesheet that index.html links
+ * (build.cssCodeSplit false), so the dependencies are JS chunks only. Vite's own helper also covers chunk
+ * stylesheets, a relative base, CSP nonces, browsers without modulepreload and the vite:preloadError
+ * event; this app has none of them (base "/", no nonce, NF-17 browsers support modulepreload).
  */
 const requested = new Set<string>();
 
 /**
  * Called by Vite's generated code as `__vitePreload(() => import('./Chunk.js'), deps)`; `deps` are paths
- * below the base, e.g. "assets/Sheet-<hash>.css". A failed stylesheet fails the import like a failed chunk.
+ * below the base, e.g. "assets/Sheet-<hash>.js". The preload links are hints only: the import itself
+ * fetches what is still missing and fails when the server is gone.
  */
 export function __vitePreload<T>(load: () => Promise<T>, deps?: readonly string[]): Promise<T> {
-  const styles: Array<Promise<unknown>> = [];
   for (const dep of deps ?? []) {
     const href = `/${dep}`;
-    // Also skips what index.html links already: the entry's stylesheet.
+    // Also skips what index.html links already.
     if (requested.has(href) || document.querySelector(`link[href="${href}"]`)) continue;
     requested.add(href);
     const link = document.createElement('link');
-    link.rel = href.endsWith('.css') ? 'stylesheet' : 'modulepreload';
+    link.rel = 'modulepreload';
     link.crossOrigin = '';
     link.href = href;
     document.head.append(link);
-    // The chunk renders only once its styles apply (no unstyled flash).
-    if (link.rel === 'stylesheet') {
-      styles.push(
-        new Promise((resolve, reject) => {
-          link.onload = resolve;
-          link.onerror = reject;
-        }),
-      );
-    }
   }
-  return Promise.all(styles).then(load);
+  return load();
 }

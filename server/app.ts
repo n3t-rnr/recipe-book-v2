@@ -14,6 +14,7 @@ import { profilesRoutes } from './routes/profiles.ts';
 import { recipeListRoutes } from './routes/recipe-list.ts';
 import { recipesRoutes } from './routes/recipes.ts';
 import { registerStatic } from './routes/static.ts';
+import { tagsRoutes } from './routes/tags.ts';
 import type { AppDeps, AppEnv } from './types.ts';
 
 /**
@@ -35,6 +36,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.route('/api/v1', recipeListRoutes(deps));
   app.route('/api/v1', recipesRoutes(deps));
   app.route('/api/v1', imagesRoutes(deps));
+  app.route('/api/v1', tagsRoutes(deps));
   app.all('/api/*', () => {
     throw new AppError('NOT_FOUND', 'Unbekannter API-Pfad');
   });

@@ -231,6 +231,8 @@ const ANCHORS: readonly { title: string; main: string; dish: string; kind: Kind 
   { title: 'Weißkohlsalat', main: 'Weißkohl', dish: 'salat', kind: 'savory' },
   { title: 'Apfelstrudel', main: 'Apfel', dish: 'strudel', kind: 'sweet' },
   { title: 'Käsespätzle', main: 'Käse', dish: 'spätzle', kind: 'savory' },
+  // The standalone word "Spätzle" lets „Spazle“ suggest „Meintest du: Spätzle?“ (F-23).
+  { title: 'Spätzle mit Linsen', main: 'Linsen', dish: 'spätzle', kind: 'savory' },
   { title: 'Tomatensuppe', main: 'Tomaten', dish: 'suppe', kind: 'savory' },
   { title: 'Zwiebelkuchen', main: 'Zwiebel', dish: 'quiche', kind: 'savory' },
   { title: 'Crème brûlée', main: 'Quark', dish: 'creme', kind: 'sweet' },

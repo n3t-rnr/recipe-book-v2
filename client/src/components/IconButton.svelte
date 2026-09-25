@@ -19,6 +19,10 @@
     haspopup?: 'dialog' | 'menu' | undefined;
     onclick?: ((event: MouseEvent) => void) | undefined;
     class?: string;
+    /** Element id, e.g. to give a row's menu button the focus back after its sheet closes (NF-11). */
+    id?: string | undefined;
+    /** The rendered <button> or <a>. */
+    element?: HTMLElement | null | undefined;
   }
 
   let {
@@ -34,6 +38,8 @@
     haspopup,
     onclick,
     class: className = '',
+    id,
+    element = $bindable(),
   }: Props = $props();
 
   const box = $derived(size ?? (variant === 'overlay' ? 48 : 44));
@@ -42,13 +48,15 @@
 </script>
 
 {#if href}
-  <a class={classes} {href} aria-label={label} {onclick}>
+  <a bind:this={element} class={classes} {id} {href} aria-label={label} {onclick}>
     <Icon name={icon} size={glyph} {strokeWidth} />
   </a>
 {:else}
   <button
+    bind:this={element}
     type="button"
     class={classes}
+    {id}
     aria-label={label}
     aria-pressed={pressed}
     aria-haspopup={haspopup}

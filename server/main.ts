@@ -12,6 +12,7 @@ import { runImageStartup } from './services/image-cleanup.ts';
 import { startMaintenance } from './services/maintenance.ts';
 import { getNetInfo, qrAscii } from './services/net-info.ts';
 import { probeIPv4Port } from './services/port.ts';
+import { ensureStartTags } from './services/tags.ts';
 import type { AppDeps, RuntimeState } from './types.ts';
 import { APP_VERSION } from './version.ts';
 
@@ -91,6 +92,9 @@ async function main(): Promise<void> {
     } else {
       ensureFtsConsistent(db, log);
     }
+    // A new installation gets the start tags once (F-20); meta.seeded keeps deleted ones deleted.
+    const created = ensureStartTags(db, new Date());
+    if (created > 0) log.info('start tags created', { count: created });
   } else {
     log.error('Datenbank beschädigt – Nur-Lese-Modus. Wiederherstellung siehe docs/BETRIEB.md.');
   }

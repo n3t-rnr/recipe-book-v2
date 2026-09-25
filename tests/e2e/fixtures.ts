@@ -1,7 +1,7 @@
 // Playwright fixtures: a real server process per worker (and on demand per test) on a free port with a
-// temporary DATA_DIR, API helpers for test data, and a guard that fails every test on a CSP violation or an
-// uncaught browser error (NF-29).
-import { type ChildProcess, spawn } from 'node:child_process';
+// temporary DATA_DIR, optionally filled by the seed CLI (1,000 recipes, NF-04), API helpers for test data,
+// and a guard that fails every test on a CSP violation or an uncaught browser error (NF-29).
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -10,8 +10,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect, type Page } from '@playwright/test';
 import type { z } from 'zod/mini';
+import { normalize } from '../../shared/normalize.ts';
 import type { RecipeCreateInput } from '../../shared/schemas.ts';
-import type { ImageUploadResponse, Profile, RecipeDetail } from '../../shared/types.ts';
+import type {
+  ImageUploadResponse,
+  Profile,
+  RecipeDetail,
+  RecipeListPage,
+  TagCount,
+  TagResponse,
+  TagsResponse,
+} from '../../shared/types.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Working directory of the server: it serves <cwd>/dist/client. E2E_APP_CWD points at a frozen build copy. */
@@ -32,6 +41,16 @@ export interface Api {
   createProfile(name: string, avatar?: string): Promise<Profile>;
   createRecipe(profileId: number, recipe: RecipeSeed): Promise<RecipeDetail>;
   uploadImage(profileId: number, body: Buffer, contentType?: string): Promise<ImageUploadResponse>;
+  /** GET /tags: all tags with counts in server order. */
+  tags(): Promise<TagCount[]>;
+  /** Id of the tag with this name (any spelling of its key, F-17); throws when there is none. */
+  tagIdByName(name: string): Promise<number>;
+  /** POST /tags; an existing key answers with that tag (200) instead of a new one (201). */
+  createTag(profileId: number, name: string): Promise<TagCount>;
+  /** DELETE /tags/:id. */
+  deleteTag(profileId: number, id: number): Promise<void>;
+  /** GET /recipes with a query string such as 'q=suppe&tags=3,7' (a leading "?" is fine). */
+  list(query: string): Promise<RecipeListPage>;
 }
 
 export interface AppServer {
@@ -74,10 +93,15 @@ function createApi(url: string): Api {
     }
     return fetch(url + apiPath, { method, headers, ...(body === undefined ? {} : { body }) });
   };
-  const expectStatus = async (res: Response, status: number, what: string): Promise<unknown> => {
+  const expectStatus = async (res: Response, status: number | number[], what: string): Promise<unknown> => {
     const text = await res.text();
-    if (res.status !== status) throw new Error(`${what}: HTTP ${res.status} ${text}`);
-    return JSON.parse(text) as unknown;
+    const ok = Array.isArray(status) ? status.includes(res.status) : res.status === status;
+    if (!ok) throw new Error(`${what}: HTTP ${res.status} ${text}`);
+    return text === '' ? undefined : (JSON.parse(text) as unknown);
+  };
+  const tags = async (): Promise<TagCount[]> => {
+    const data = await expectStatus(await request('GET', '/api/v1/tags'), 200, 'Tags laden');
+    return (data as TagsResponse).tags;
   };
   return {
     request,
@@ -108,6 +132,33 @@ function createApi(url: string): Api {
       );
       return data as ImageUploadResponse;
     },
+    tags,
+    async tagIdByName(name) {
+      const key = normalize(name);
+      const found = (await tags()).find((t) => normalize(t.name) === key);
+      if (!found) throw new Error(`Tag „${name}“ gibt es nicht`);
+      return found.id;
+    },
+    async createTag(profileId, name) {
+      const data = await expectStatus(
+        await request('POST', '/api/v1/tags', { profileId, json: { name } }),
+        [200, 201],
+        'Tag anlegen',
+      );
+      return (data as TagResponse).tag;
+    },
+    async deleteTag(profileId, id) {
+      await expectStatus(await request('DELETE', `/api/v1/tags/${id}`, { profileId }), 204, 'Tag löschen');
+    },
+    async list(query) {
+      const q = query.replace(/^\?/, '');
+      const data = await expectStatus(
+        await request('GET', `/api/v1/recipes${q === '' ? '' : `?${q}`}`),
+        200,
+        'Rezepte laden',
+      );
+      return data as RecipeListPage;
+    },
   };
 }
 
@@ -126,13 +177,49 @@ async function waitForHealth(url: string, child: ChildProcess, output: () => str
   }
 }
 
+/** Fills an empty data dir with `count` recipes of the seed CLI (Kap. 9.3); it also sets meta.seeded. */
+function seedDataDir(dataDir: string, count: number): void {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--disable-warning=ExperimentalWarning',
+      'tests/seed.ts',
+      '--data-dir',
+      dataDir,
+      '--count',
+      String(count),
+    ],
+    { cwd: ROOT, encoding: 'utf8', timeout: 120_000 },
+  );
+  if (result.status !== 0) {
+    const reason = result.error ? String(result.error) : `Exit ${result.status ?? result.signal}`;
+    throw new Error(`Testdaten anlegen fehlgeschlagen (${reason}):\n${result.stdout}${result.stderr}`);
+  }
+}
+
+export interface StartOptions {
+  /** Number of seed recipes (tests/seed.ts) created before the server starts; none by default. */
+  seed?: number;
+}
+
 /** Starts `node server/main.ts` against dist/client, like `pnpm start`, on a free port. */
-export async function startServer(env: Record<string, string> = {}): Promise<AppServer> {
+export async function startServer(
+  env: Record<string, string> = {},
+  options: StartOptions = {},
+): Promise<AppServer> {
   if (!fs.existsSync(path.join(APP_CWD, 'dist', 'client', 'index.html'))) {
     throw new Error(`${APP_CWD}/dist/client fehlt – zuerst "pnpm build" (oder "pnpm e2e") ausführen.`);
   }
   const port = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rezepte-e2e-'));
+  if (options.seed !== undefined) {
+    try {
+      seedDataDir(dataDir, options.seed);
+    } catch (err) {
+      fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+      throw err;
+    }
+  }
   const url = `http://127.0.0.1:${port}`;
   let log = '';
   let child: ChildProcess;
@@ -212,6 +299,11 @@ interface TestFixtures {
 interface WorkerFixtures {
   /** A server shared by all tests of one worker; tests create their own profiles and recipes. */
   server: AppServer;
+  /**
+   * A server with the 1,000 seed recipes (tests/seed.ts: profiles, tags, ratings), shared by the tests of
+   * one worker. Read only: tests must not change its data. It gets no start tags (meta.seeded is set).
+   */
+  seededServer: AppServer;
 }
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
@@ -223,6 +315,15 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await server.dispose();
     },
     { scope: 'worker' },
+  ],
+  seededServer: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright reads fixture dependencies from this pattern.
+    async ({}, use) => {
+      const server = await startServer({}, { seed: 1000 });
+      await use(server);
+      await server.dispose();
+    },
+    { scope: 'worker', timeout: 120_000 },
   ],
   // biome-ignore lint/correctness/noEmptyPattern: Playwright reads fixture dependencies from this pattern.
   freshServer: async ({}, use) => {

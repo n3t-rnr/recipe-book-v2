@@ -25,6 +25,10 @@ export const LIMITS = {
   uploadMaxPixels: 60_000_000,
   pageSize: 40,
   pageSizeMax: 100,
+  /** Characters of the search text in GET /recipes?q= (search strategy: Kap. 4.5). */
+  query: 200,
+  /** Tag ids per list filter in GET /recipes?tags= (F-24). */
+  filterTags: 20,
 } as const;
 
 /**

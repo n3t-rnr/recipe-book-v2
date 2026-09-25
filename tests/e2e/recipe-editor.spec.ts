@@ -18,11 +18,15 @@ import { type AppServer, expect, test, useProfile } from './fixtures.ts';
 
 let seq = 0;
 
-/** Unique per worker server: project, repeat, retry and a counter (the worker's server is shared). */
+/**
+ * Unique per worker server: project, worker, repeat, retry and a counter. The worker's server is shared
+ * with other specs, so the "e…r…n…" form must not match their names (layout-theme.spec.ts:
+ * "<worker>-<n>", tag-input.spec.ts: "t…r…n…", desktop.spec.ts: "w…r…n…").
+ */
 function unique(label: string): string {
   seq += 1;
   const info = test.info();
-  return `${label} ${info.project.name} ${info.repeatEachIndex}${info.retry}-${seq}`;
+  return `${label} ${info.project.name} e${info.workerIndex}r${info.repeatEachIndex}${info.retry}n${seq}`;
 }
 
 /** From 1024 px: navigation rail, list and detail side by side, "Weitere Angaben" always open. */

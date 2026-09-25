@@ -355,17 +355,33 @@ export interface TagAddResult {
 }
 
 /**
- * Adds the comma-separated names of `raw` (Enter or comma in the chip input). Whitespace is collapsed,
- * duplicates by normalize() collapse into the existing chip ("süßspeise" = "Süssspeise", F-17), at most
- * 20 tags with 40 characters each.
+ * Invisible control characters other than whitespace (pasted text): a tag name may not contain any
+ * (SINGLE_LINE in shared/schemas.ts), so the chip input drops them instead of keeping a name that saving
+ * would refuse (NF-28). Tab and line breaks count as whitespace and become a space.
  */
-export function addTags(tags: readonly string[], raw: string): TagAddResult {
+// biome-ignore lint/suspicious/noControlCharactersInRegex: the regex exists to drop control characters
+const TAG_CONTROL = /[\u0000-\u0008\u000E-\u001F\u007F]/gu;
+
+/**
+ * Adds the comma-separated names of `raw` (Enter or comma in the chip input), or each name of an array
+ * whole: a picked suggestion may contain a comma (F-17 allows punctuation, the tag page can create
+ * "Salz, Pfeffer"), which must stay one tag. Whitespace is collapsed, control characters dropped,
+ * duplicates by normalize() collapse into the existing chip ("süßspeise" = "Süssspeise", F-17), at most
+ * 20 tags with 40 characters each. A name whose key is in `canonical` (key → display name of the tags on
+ * the server, lib/tag-match.ts tagNamesByKey) shows that name at once: "süßspeise" becomes "Süßspeise",
+ * as the server would keep it on saving.
+ */
+export function addTags(
+  tags: readonly string[],
+  raw: string | readonly string[],
+  canonical?: ReadonlyMap<string, string>,
+): TagAddResult {
   const next = [...tags];
   const keys = new Set(next.map((tag) => normalize(tag)));
   const rejected: string[] = [];
   let error: string | null = null;
-  for (const part of raw.split(',')) {
-    const name = part.replace(/\s+/gu, ' ').trim();
+  for (const part of typeof raw === 'string' ? raw.split(',') : raw) {
+    const name = part.replace(TAG_CONTROL, '').replace(/\s+/gu, ' ').trim();
     if (name === '') continue;
     const key = normalize(name);
     if (key === '' || keys.has(key)) continue;
@@ -379,10 +395,48 @@ export function addTags(tags: readonly string[], raw: string): TagAddResult {
       error = deEditor.tags.limit(LIMITS.tagsPerRecipe);
       continue;
     }
-    next.push(name);
+    next.push(canonical?.get(key) ?? name);
     keys.add(key);
   }
   return { tags: next, rejected, error };
+}
+
+/** What a key does in the tag field (TagInput.svelte, a combobox with a suggestion list, F-18). */
+export type TagKeyAction = 'next' | 'prev' | 'pick' | 'add' | 'close';
+
+/** The parts of a KeyboardEvent that decide a TagKeyAction (no DOM types: the tests run in Node). */
+export interface TagKey {
+  key: string;
+  isComposing: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
+/**
+ * Key handling of the tag field (F-18, NF-11). No suggestion is marked until ArrowDown or ArrowUp, so
+ * Enter adds the typed text ('add') unless one is marked ('pick'); a comma picks the marked suggestion,
+ * otherwise it goes through the input like on a virtual keyboard. Escape closes the list. Ctrl/Cmd+Enter
+ * and every key of a running input method stay null: the form saves (and commits the text itself).
+ * The caller calls preventDefault for every non-null action.
+ */
+export function tagKeyAction(e: TagKey, expanded: boolean, active: number): TagKeyAction | null {
+  if (e.isComposing) return null;
+  const marked = expanded && active >= 0;
+  switch (e.key) {
+    case 'ArrowDown':
+      return expanded ? 'next' : null;
+    case 'ArrowUp':
+      return expanded ? 'prev' : null;
+    case 'Enter':
+      if (e.ctrlKey || e.metaKey) return null;
+      return marked ? 'pick' : 'add';
+    case ',':
+      return marked ? 'pick' : null;
+    case 'Escape':
+      return expanded ? 'close' : null;
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------- reordering

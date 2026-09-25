@@ -6,12 +6,19 @@
 // - list: „Aktualisieren“ (also a retry that times out again), the last list stays, no offline banner
 // - detail: „In den Papierkorb“ and the toast's „Rückgängig“; trash: „Wiederherstellen“; Mehr: delete a
 //   profile; Status: „Aktualisieren“
-// Lower level: tests/unit/state-toast.test.ts (toast.error offers the retry only for TIMEOUT and NETWORK).
+// - tags (M4): while GET /tags hangs the chip row shows only „Alle Tags …“ (its height kept); the filter
+//   sheet shows skeleton chips, then the error with „Erneut versuchen“; „Aktualisieren“ and the
+//   reconnection load the tags again (F-24, F-33, NF-09 AK4, amendment 2)
+// Lower level: tests/unit/state-toast.test.ts (toast.error offers the retry only for TIMEOUT and NETWORK),
+// tests/unit/state-tags.test.ts (tag store: stale, errors, late answers).
 import type { Locator, Page, Request, Route } from '@playwright/test';
+import { ds } from '../../client/src/i18n/de-screens.ts';
+import { df } from '../../client/src/i18n/de-screens-filter.ts';
 import { type AppServer, expect, test, useProfile } from './fixtures.ts';
 
 const TIMEOUT_TEXT = 'Das dauert zu lange';
 const LIST = '/api/v1/recipes';
+const TAGS = '/api/v1/tags';
 
 /**
  * Holds every `method` request to `pathname` without an answer until release(); the app gives up after
@@ -265,4 +272,112 @@ test('Status: „Aktualisieren“ ohne Antwort zeigt nach 10 s „Das dauert zu 
   await answered;
   await expect(toast).toHaveCount(0);
   await expect(version).toBeVisible();
+});
+
+// --- M4: the tag list of the chip row and the filter sheet
+
+function chips(page: Page): Locator {
+  return page.getByRole('group', { name: ds.list.chips }).getByRole('button');
+}
+
+/** A profile with a recipe tagged „Suppe“ (the fresh server also has the 10 start tags). */
+async function listWithTags(page: Page, server: AppServer): Promise<void> {
+  const profile = await server.api.createProfile('Zeit');
+  await server.api.createRecipe(profile.id, { title: 'Linsensuppe', tags: ['Suppe'] });
+  await useProfile(page, profile.id);
+}
+
+test('Tags: hängt GET /tags, zeigt die Chip-Reihe nur „Alle Tags …“; nach der Wiederverbindung erscheinen die Tags @phone @tablet @desktop', async ({
+  page,
+  freshServer,
+}) => {
+  await listWithTags(page, freshServer);
+  await page.clock.install();
+  const held = await hold(page, 'GET', TAGS);
+  const request = sent(page, 'GET', TAGS);
+  await page.goto(`${freshServer.url}/rezepte`);
+  await request;
+  await expect(recipeLink(page, 'Linsensuppe')).toBeVisible();
+  await expect(chips(page)).toHaveText([ds.list.allTags]);
+  // The row keeps the height of a chip row, so the tags push nothing down when they come (NF-06).
+  const row = page.getByRole('group', { name: ds.list.chips });
+  expect((await row.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(58);
+  const countTop = await page.locator('main p.count').evaluate((el) => el.getBoundingClientRect().top);
+  // The app gives up after its 10 s; the chip row stays as it is.
+  await page.clock.fastForward(10_000);
+  await expect(chips(page)).toHaveText([ds.list.allTags]);
+  await held.release();
+
+  // Then the server is unreachable („Aktualisieren“ fails, its tag request too) …
+  await page.route('**/api/v1/**', (route) => route.abort('connectionrefused'));
+  await page.getByRole('button', { name: 'Aktualisieren' }).click();
+  const banner = page.getByRole('alert').filter({ hasText: 'Server nicht erreichbar' });
+  await expect(banner).toBeVisible();
+  await expect(chips(page)).toHaveText([ds.list.allTags]);
+  await page.unroute('**/api/v1/**');
+
+  // … and answers again: the reconnection loads the tags (NF-09 AK4).
+  await banner.getByRole('button', { name: 'Erneut versuchen' }).click();
+  await expect(banner).toHaveCount(0);
+  await expect(chips(page).first()).toHaveText('Suppe');
+  await expect(chips(page)).toHaveCount(11);
+  await expect(chips(page).last()).toHaveText(ds.list.allTags);
+  expect(await page.locator('main p.count').evaluate((el) => el.getBoundingClientRect().top)).toBe(countTop);
+});
+
+test('Tags: ohne Antwort zeigt das Filter-Sheet erst Platzhalter, nach 10 s den Fehler mit „Erneut versuchen“, das die Tags lädt @phone @desktop', async ({
+  page,
+  freshServer,
+}) => {
+  await listWithTags(page, freshServer);
+  await page.clock.install();
+  const held = await hold(page, 'GET', TAGS);
+  let request = sent(page, 'GET', TAGS);
+  await page.goto(`${freshServer.url}/rezepte`);
+  await request;
+  await expect(recipeLink(page, 'Linsensuppe')).toBeVisible();
+
+  await page.getByRole('button', { name: ds.list.filter(0), exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: df.title });
+  await expect(sheet).toBeVisible();
+  // Loading: chip-sized placeholders, announced as loading.
+  await expect(sheet.getByRole('status')).toHaveText('Lädt …');
+  await expect(sheet.locator('[aria-busy="true"]')).toBeVisible();
+  await page.clock.fastForward(10_000);
+  await expect(sheet.getByText(TIMEOUT_TEXT)).toBeVisible();
+  const retry = sheet.getByRole('button', { name: 'Erneut versuchen' });
+  await expect(retry).toBeVisible();
+  // The rest of the sheet works meanwhile.
+  await expect(sheet.getByRole('radio', { name: 'Neueste' })).toHaveAttribute('aria-checked', 'true');
+
+  await held.release();
+  request = sent(page, 'GET', TAGS);
+  await retry.click();
+  await request;
+  await expect(sheet.getByRole('button', { name: 'Suppe 1', exact: true })).toBeVisible();
+  await expect(sheet.getByText(TIMEOUT_TEXT)).toHaveCount(0);
+  await sheet.getByRole('button', { name: df.close }).click();
+  await expect(chips(page).first()).toHaveText('Suppe');
+});
+
+test('Tags: nach einer Zeitüberschreitung lädt „Aktualisieren“ die Tags der Chip-Reihe neu @phone @desktop', async ({
+  page,
+  freshServer,
+}) => {
+  await listWithTags(page, freshServer);
+  await page.clock.install();
+  const held = await hold(page, 'GET', TAGS);
+  const request = sent(page, 'GET', TAGS);
+  await page.goto(`${freshServer.url}/rezepte`);
+  await request;
+  await expect(recipeLink(page, 'Linsensuppe')).toBeVisible();
+  await page.clock.fastForward(10_000);
+  await expect(chips(page)).toHaveText([ds.list.allTags]);
+  // The list is there, so the failed tag list shows no toast of its own.
+  await expect(toastWith(page, TIMEOUT_TEXT)).toHaveCount(0);
+
+  await held.release();
+  await page.getByRole('button', { name: 'Aktualisieren' }).click();
+  await expect(chips(page).first()).toHaveText('Suppe');
+  await expect(chips(page)).toHaveCount(11);
 });

@@ -586,10 +586,11 @@ test('f6: Rezept nur mit der Tastatur anlegen – Tab mit sichtbarem Fokus, Ente
   // Enter moves on instead of submitting.
   await page.keyboard.type(title);
   await page.keyboard.press('Enter');
-  const tagField = page.getByRole('textbox', { name: deEditor.tags.label });
+  const tagField = page.getByRole('combobox', { name: deEditor.tags.label });
   await expect(tagField).toBeFocused();
   await expectRing(page, problems);
-  // In the tag field Enter adds the tag (F-17) and stays there.
+  // In the tag field Enter adds the tag (F-17) and stays there. Nothing is marked before ArrowDown, so Enter
+  // adds the typed text also while suggestions are shown (F-18, tests/e2e/tag-input.spec.ts).
   await page.keyboard.type('Kuchen');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: deEditor.tags.remove('Kuchen') })).toBeVisible();
@@ -853,7 +854,7 @@ test('f6: Strg+Enter speichert auch im Tag-Feld, samt dem gerade getippten Tag @
     page,
     server,
     profile.id,
-    (p) => p.getByRole('textbox', { name: deEditor.tags.label }),
+    (p) => p.getByRole('combobox', { name: deEditor.tags.label }),
     { text: 'Kuchen' },
   );
   expect(saved.tags.map((t) => t.name)).toEqual(['Kuchen']);

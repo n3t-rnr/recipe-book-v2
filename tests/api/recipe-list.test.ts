@@ -1,15 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { reindexRecipe } from '../../server/db/fts.ts';
 import { listRecipes } from '../../server/db/repos/recipe-list.ts';
+import { buildSearchSpec } from '../../server/db/search.ts';
 import type { DB } from '../../server/db/types.ts';
 import type { ErrorBody, ValidationDetail } from '../../shared/error-codes.ts';
 import { normalize } from '../../shared/normalize.ts';
-import type { RecipeCard, RecipeListResponse } from '../../shared/types.ts';
-import { createTestContext, type TestContext } from '../helpers/app.ts';
-import { createTestDb, MIGRATIONS_DIR } from '../helpers/db.ts';
+import type { RecipeCard, RecipeListPage } from '../../shared/types.ts';
+import { CLIENT_HEADERS, createTestContext, type TestContext } from '../helpers/app.ts';
+import { createTestDb } from '../helpers/db.ts';
+import { insertProfile, insertRecipe, tracedDb } from '../helpers/recipes.ts';
 import { seed } from '../seed.ts';
 
 const BASE = 'http://localhost:8080/api/v1';
@@ -27,61 +25,13 @@ afterEach(() => {
   ctx = undefined;
 });
 
-interface RecipeFixture {
-  title: string;
-  createdAt?: string;
-  updatedAt?: string;
-  deletedAt?: string | null;
-  prep?: number | null;
-  cook?: number | null;
-  tags?: string[];
-}
-
-// Plain SQL: the list must not depend on the write API of another module.
-function insertRecipe(db: DB, r: RecipeFixture): number {
-  const createdAt = r.createdAt ?? '2026-09-01T10:00:00.000Z';
-  const id = Number(
-    db
-      .prepare(
-        `INSERT INTO recipes(title, title_key, prep_minutes, cook_minutes, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        r.title,
-        normalize(r.title),
-        r.prep ?? null,
-        r.cook ?? null,
-        createdAt,
-        r.updatedAt ?? createdAt,
-        r.deletedAt ?? null,
-      ).lastInsertRowid,
-  );
-  for (const name of r.tags ?? []) {
-    const key = normalize(name);
-    db.prepare('INSERT OR IGNORE INTO tags(name, name_key) VALUES (?, ?)').run(name, key);
-    db.prepare('INSERT INTO recipe_tags(recipe_id, tag_id) SELECT ?, id FROM tags WHERE name_key = ?').run(
-      id,
-      key,
-    );
-  }
-  reindexRecipe(db, id);
-  return id;
-}
-
-function insertProfile(db: DB, name: string): number {
-  return Number(
-    db.prepare('INSERT INTO profiles(name, name_key) VALUES (?, ?)').run(name, normalize(name))
-      .lastInsertRowid,
-  );
-}
-
 async function getList(
   c: TestContext,
   query = '',
   headers: Record<string, string> = {},
-): Promise<{ status: number; body: RecipeListResponse }> {
+): Promise<{ status: number; body: RecipeListPage }> {
   const res = await c.app.request(`${BASE}/recipes${query}`, { headers: { ...HOST, ...headers } });
-  return { status: res.status, body: (await res.json()) as RecipeListResponse };
+  return { status: res.status, body: (await res.json()) as RecipeListPage };
 }
 
 async function getError(c: TestContext, query: string): Promise<{ status: number; body: ErrorBody }> {
@@ -105,7 +55,7 @@ async function walk(c: TestContext, query: string): Promise<number[]> {
   throw new Error('pagination did not end');
 }
 
-function card(body: RecipeListResponse, id: number): RecipeCard {
+function card(body: RecipeListPage, id: number): RecipeCard {
   const found = body.items.find((i) => i.id === id);
   if (!found) throw new Error(`card ${id} missing`);
   return found;
@@ -116,7 +66,7 @@ describe('GET /api/v1/recipes – pagination', () => {
     const c = setup();
     const { status, body } = await getList(c);
     expect(status).toBe(200);
-    expect(body).toEqual({ items: [], nextCursor: null, total: 0 });
+    expect(body).toEqual({ items: [], nextCursor: null, total: 0, totalAll: 0 });
   });
 
   it('pages 45 recipes as 40 + 5 without duplicates, newest first', async () => {
@@ -202,17 +152,14 @@ describe('GET /api/v1/recipes – pagination', () => {
     }
   });
 
-  it('answers filters and sort orders of later milestones with 400', async () => {
+  it('answers the M5 filters and sort orders with 400', async () => {
     const c = setup();
     const cases: [string, string][] = [
-      ['?q=kaese', 'q'],
-      ['?tags=1,2', 'tags'],
-      ['?tagMode=any', 'tagMode'],
       ['?fav=1', 'fav'],
       ['?minRating=4', 'minRating'],
-      ['?sort=relevance', 'sort'],
       ['?sort=rating', 'sort'],
       ['?sort=myRating', 'sort'],
+      ['?q=kaese&fav=1', 'fav'],
     ];
     for (const [query, field] of cases) {
       const res = await getError(c, query);
@@ -227,7 +174,11 @@ describe('GET /api/v1/recipes – pagination', () => {
     const unknown = await getError(c, '?sort=zufall');
     expect(unknown.status).toBe(400);
     expect(unknown.body.error.details).toEqual([{ field: 'sort', message: 'Unbekannte Sortierung' }]);
-    expect((await getList(c, '?q=&sort=')).status).toBe(200);
+    expect((await getList(c, '?q=&sort=&tags=&tagMode=')).status).toBe(200);
+    // Search, tags, tag mode and relevance are M4 features now.
+    for (const query of ['?q=kaese', '?tags=1,2', '?tagMode=any', '?sort=relevance']) {
+      expect((await getList(c, query)).status, query).toBe(200);
+    }
   });
 });
 
@@ -360,41 +311,132 @@ describe('GET /api/v1/recipes – cards', () => {
 });
 
 describe('GET /api/v1/recipes – statement budget (NF-04)', () => {
-  /** In-memory DB like createTestDb, but every executed statement is recorded. */
-  function tracedDb(): { db: DB; statements: string[] } {
-    const statements: string[] = [];
-    const db = new Database(':memory:', { verbose: (sql) => statements.push(String(sql)) });
-    db.pragma('foreign_keys = ON');
-    for (const file of fs
-      .readdirSync(MIGRATIONS_DIR)
-      .filter((f) => /^\d{3}_.+\.sql$/.test(f))
-      .sort()) {
-      db.exec(fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8'));
-    }
-    return { db, statements };
+  const NOW = new Date('2026-09-23T10:00:00Z');
+
+  /** 120 seeded recipes on a traced DB; returns the app, Anna's header and two tag ids ("a,b"). */
+  function tracedApp(): {
+    c: TestContext;
+    statements: string[];
+    headers: Record<string, string>;
+    tags: string;
+  } {
+    const { db, statements } = tracedDb();
+    seed(db, { count: 120, now: NOW });
+    const c = setup(db);
+    const profileId = db.prepare("SELECT id FROM profiles WHERE name = 'Anna'").pluck().get() as number;
+    // The two tags that share the most recipes, so "all" still leaves several hits to page through.
+    const pair = db
+      .prepare(
+        `SELECT a.tag_id AS a, b.tag_id AS b FROM recipe_tags a
+         JOIN recipe_tags b ON b.recipe_id = a.recipe_id AND b.tag_id > a.tag_id
+         GROUP BY a.tag_id, b.tag_id ORDER BY count(*) DESC, a.tag_id, b.tag_id LIMIT 1`,
+      )
+      .get() as { a: number; b: number };
+    statements.length = 0;
+    return { c, statements, headers: { 'X-Profile-Id': String(profileId) }, tags: `${pair.a},${pair.b}` };
+  }
+
+  /** Runs the request twice (the first compiles the statement shape) and returns the second count. */
+  async function counted(
+    t: ReturnType<typeof tracedApp>,
+    query: string,
+  ): Promise<{ body: RecipeListPage; count: number; sql: string }> {
+    await getList(t.c, query, t.headers);
+    t.statements.length = 0;
+    const { status, body } = await getList(t.c, query, t.headers);
+    expect(status, query).toBe(200);
+    return { body, count: t.statements.length, sql: t.statements.join('\n---\n') };
   }
 
   it('needs at most 4 SQL statements per list request, including middleware', async () => {
-    const { db, statements } = tracedDb();
-    seed(db, { count: 120, now: new Date('2026-09-23T10:00:00Z') });
-    const c = setup(db);
-    const profileId = db.prepare("SELECT id FROM profiles WHERE name = 'Anna'").pluck().get() as number;
-    const headers = { 'X-Profile-Id': String(profileId) };
-
+    const t = tracedApp();
     for (const sort of ['newest', 'updated', 'title']) {
-      // Warm-up compiles the cached statements; the budget counts executions.
-      const first = await getList(c, `?sort=${sort}`, headers);
-      statements.length = 0;
-      const next = await getList(c, `?sort=${sort}&cursor=${first.body.nextCursor}`, headers);
-      expect(next.status).toBe(200);
+      const first = await counted(t, `?sort=${sort}`);
+      expect(first.count, first.sql).toBeLessThanOrEqual(4);
+      const next = await counted(t, `?sort=${sort}&cursor=${first.body.nextCursor}`);
       expect(next.body.items).toHaveLength(40);
-      expect(statements.length, statements.join('\n')).toBeLessThanOrEqual(4);
+      expect(next.count, next.sql).toBeLessThanOrEqual(4);
     }
+  });
 
-    // The list itself: page + total in one statement, tags of the page ids in a second one.
+  it('stays at 4 statements with search, two tags, both modes and every sort, on every page', async () => {
+    const t = tracedApp();
+    const withNextPage = new Set<string>();
+    for (const q of ['kartoffel kase', 'zwiebeln', 'den', 'zw']) {
+      for (const tagPart of ['', `&tags=${t.tags}&tagMode=all`, `&tags=${t.tags}&tagMode=any`]) {
+        for (const sort of ['relevance', 'newest', 'title']) {
+          const query = `?q=${encodeURIComponent(q)}${tagPart}&sort=${sort}&limit=1`;
+          const first = await counted(t, query);
+          expect(first.count, `${query}\n${first.sql}`).toBeLessThanOrEqual(4);
+          if (first.body.nextCursor === null) continue;
+          withNextPage.add(`${tagPart}|${sort}`);
+          const next = await counted(t, `${query}&cursor=${first.body.nextCursor}`);
+          expect(next.body.items.length, query).toBeGreaterThan(0);
+          expect(next.count, `${query} (cursor)\n${next.sql}`).toBeLessThanOrEqual(4);
+        }
+      }
+    }
+    // Every sort had a follow-up page, in plain search and with each tag mode.
+    expect(withNextPage.size).toBe(9);
+  });
+
+  it('rebuilds the word list of a zero-hit search within the budget, also right after a write', async () => {
+    const t = tracedApp();
+    const warm = await counted(t, '?q=Spazle');
+    expect(warm.body).toMatchObject({ items: [], total: 0, didYouMean: 'Spätzle' });
+    // profile + page + revision header; the empty page needs no card tags, the word list is fresh.
+    expect(warm.count, warm.sql).toBe(3);
+
+    const write = await t.c.app.request(`${BASE}/profiles`, {
+      method: 'POST',
+      headers: CLIENT_HEADERS,
+      body: JSON.stringify({ name: 'Mia' }),
+    });
+    expect(write.status).toBe(201);
+    t.statements.length = 0;
+    const stale = await getList(t.c, '?q=Spazle', t.headers);
+    expect(stale.body.didYouMean).toBe('Spätzle');
+    // The revision changed, so the list is rebuilt: one statement in place of the card tags.
+    expect(t.statements.length, t.statements.join('\n---\n')).toBe(4);
+    expect(t.statements.filter((sql) => sql.includes('UNION ALL'))).toHaveLength(1);
+  });
+
+  it('needs as many statements for 100 cards as for 40 (no N+1)', async () => {
+    const t = tracedApp();
+    for (const query of ['?limit=40', '?limit=100', '?q=suppe&limit=40', '?q=suppe&limit=100']) {
+      const { body, count, sql } = await counted(t, query);
+      expect(body.items.length, query).toBeGreaterThan(0);
+      expect(count, `${query}\n${sql}`).toBe(4);
+    }
+  });
+
+  it('runs the list itself in exactly 2 statements, with search and tag filter too', () => {
+    const { db, statements } = tracedDb();
+    seed(db, { count: 120, now: NOW });
+    const profileId = db.prepare("SELECT id FROM profiles WHERE name = 'Anna'").pluck().get() as number;
+    const ids = db
+      .prepare('SELECT tag_id FROM recipe_tags GROUP BY tag_id ORDER BY count(*) DESC')
+      .pluck()
+      .all();
+    const base = { cursor: null, limit: 40, profileId } as const;
+
     statements.length = 0;
-    listRecipes(db, { sort: 'newest', cursor: null, limit: 40, profileId });
+    listRecipes(db, { ...base, sort: 'newest', search: null, tagFilter: null });
     expect(statements).toHaveLength(2);
+
+    statements.length = 0;
+    const page = listRecipes(db, {
+      ...base,
+      sort: 'relevance',
+      search: buildSearchSpec('zwieb'),
+      tagFilter: { ids: ids.slice(0, 5) as number[], mode: 'any' },
+    });
+    expect(page.items.length).toBeGreaterThan(0);
+    // Page, filtered total, total of all recipes and revision in one statement; card tags in the other.
+    expect(statements).toHaveLength(2);
+    expect(page.totalAll).toBe(120);
+    expect(page.revision).toBe(1);
+    db.close();
   });
 });
 
@@ -428,7 +470,7 @@ describe('tests/seed.ts', () => {
     const names = db.prepare('SELECT name FROM profiles ORDER BY created_at').pluck().all();
     expect(names).toEqual(['Sebastian', 'Anna', 'Jonas']);
     const titles = db.prepare('SELECT title FROM recipes ORDER BY id').pluck().all() as string[];
-    for (const t of ['Kürbissuppe', 'Käsekuchen', 'Weißkohlsalat', 'Apfelstrudel'])
+    for (const t of ['Kürbissuppe', 'Käsekuchen', 'Weißkohlsalat', 'Apfelstrudel', 'Spätzle mit Linsen'])
       expect(titles).toContain(t);
     // Search finds compounds through the index built by the seed.
     const hits = db

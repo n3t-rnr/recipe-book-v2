@@ -272,3 +272,14 @@ export function trashRecipeRow(db: DB, id: number, profileId: number, now: strin
 export function restoreRecipeRow(db: DB, id: number): void {
   prepared(db, 'UPDATE recipes SET deleted_at = NULL, deleted_by = NULL WHERE id = ?').run(id);
 }
+
+/**
+ * Raises the version of each recipe by exactly 1, trashed ones included (F-19): after a tag rename,
+ * merge or delete a stale PUT gets 409 VERSION_CONFLICT instead of reviving the old tag by upsert.
+ * updated_at and updated_by stay: tag maintenance is not a content edit ("geändert von … am …").
+ */
+export function bumpRecipeVersions(db: DB, ids: readonly number[]): void {
+  prepared(db, 'UPDATE recipes SET version = version + 1 WHERE id IN (SELECT value FROM json_each(?))').run(
+    JSON.stringify(ids),
+  );
+}

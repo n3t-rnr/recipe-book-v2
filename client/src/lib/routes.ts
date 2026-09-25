@@ -168,7 +168,8 @@ export const paths = {
   profile: (query?: { next?: string | null; neu?: boolean }) => buildUrl('/profil', query),
   recipes: (query?: QueryInput) => buildUrl('/rezepte', query),
   recipeNew: (query?: { title?: string }) => buildUrl('/rezepte/neu', query),
-  recipe: (id: number) => `/rezepte/${id}`,
+  /** From 1024 px the list stays next to the detail; its filter rides along in the query (F-34). */
+  recipe: (id: number, query?: QueryInput) => buildUrl(`/rezepte/${id}`, query),
   recipeEdit: (id: number) => `/rezepte/${id}/bearbeiten`,
   favorites: (query?: QueryInput) => buildUrl('/favoriten', query),
   tags: '/tags',

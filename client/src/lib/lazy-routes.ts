@@ -26,6 +26,12 @@ export const loadMore = lazy(() => import('../routes/More.svelte'));
 export const loadConnect = lazy(() => import('../routes/Connect.svelte'));
 export const loadTrash = lazy(() => import('../routes/Trash.svelte'));
 export const loadStatus = lazy(() => import('../routes/Status.svelte'));
+/**
+ * Filter sheet of the list (F-24, F-26) and the list without hits (F-23, F-33): parts of the list view,
+ * which preloads them itself (RecipeList.svelte notes failures for its reload after a reconnection).
+ */
+export const loadFilterSheet = lazy(() => import('../components/screens/FilterSheet.svelte'));
+export const loadNoHits = lazy(() => import('../components/screens/NoHits.svelte'));
 
 /**
  * Starts loading the detail chunk when the user presses a recipe (pointerdown/focus on a card or row),

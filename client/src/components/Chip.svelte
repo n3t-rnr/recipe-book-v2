@@ -6,15 +6,41 @@
   interface Props {
     label: string;
     active?: boolean;
-    /** Recipe count shown after the label (filter sheet). */
+    /** Recipe count shown after the label (filter sheet, tag page). */
     count?: number | null;
-    /** toggle: aria-pressed chip; outline: plain action or option. */
-    variant?: 'toggle' | 'outline';
+    /**
+     * toggle: aria-pressed chip (chip row, filter sheet); outline: plain action or option;
+     * action: the inactive look without a state (a choice such as the merge target).
+     */
+    variant?: 'toggle' | 'outline' | 'action';
+    /** radio: an option of a role="radiogroup" (sort); `active` becomes aria-checked. */
+    role?: 'radio' | undefined;
+    /** Roving tabindex inside a radiogroup (0 for the checked option, -1 for the others). */
+    tabindex?: number | undefined;
+    haspopup?: 'dialog' | undefined;
     href?: string | undefined;
     onclick?: ((event: MouseEvent) => void) | undefined;
+    /** Early signal of a tap, e.g. to preload the sheet the chip opens. */
+    onpointerdown?: ((event: PointerEvent) => void) | undefined;
+    onkeydown?: ((event: KeyboardEvent) => void) | undefined;
+    /** The rendered <button> or <a>, e.g. to focus the checked option. */
+    element?: HTMLElement | null | undefined;
   }
 
-  let { label, active = false, count = null, variant = 'toggle', href, onclick }: Props = $props();
+  let {
+    label,
+    active = false,
+    count = null,
+    variant = 'toggle',
+    role,
+    tabindex,
+    haspopup,
+    href,
+    onclick,
+    onpointerdown,
+    onkeydown,
+    element = $bindable(),
+  }: Props = $props();
 
   const classes = $derived(['chip', active ? 'active' : variant === 'outline' ? 'outline' : 'inactive']);
 </script>
@@ -26,13 +52,22 @@
 {/snippet}
 
 {#if href}
-  <a class={classes} {href} aria-current={active ? 'true' : undefined} {onclick}>{@render content()}</a>
+  <a bind:this={element} class={classes} {href} aria-current={active ? 'true' : undefined} {onclick}>
+    {@render content()}
+  </a>
 {:else}
   <button
+    bind:this={element}
     type="button"
     class={classes}
-    aria-pressed={variant === 'toggle' || active ? active : undefined}
+    {role}
+    {tabindex}
+    aria-checked={role === 'radio' ? active : undefined}
+    aria-pressed={role !== 'radio' && (variant === 'toggle' || active) ? active : undefined}
+    aria-haspopup={haspopup}
     {onclick}
+    {onpointerdown}
+    {onkeydown}
   >
     {@render content()}
   </button>

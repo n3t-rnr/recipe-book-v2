@@ -1,6 +1,14 @@
-// Pure parts of the client router (Kap. 6.2, F-02, F-34): matching, params, query building, redirects,
-// the recorded URL per history position (previousPath).
-import { describe, expect, it } from 'vitest';
+// Client router (Kap. 6.2, F-02, F-34): the pure parts (matching, params, query building, redirects, the
+// recorded URL per history position) and, on a simulated History API, filter changes inside an open sheet
+// (Kap. 6.3: „Änderungen wirken sofort“): the sheet stays open and the page keeps the new URL after Back,
+// the close button or a reload (F-34 AK3/AK4).
+import fs from 'node:fs';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { compileModule } from 'svelte/compiler';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseUrls, pathBefore, recordUrl } from '../../client/src/lib/history-urls.ts';
 import {
   buildQuery,
@@ -92,6 +100,16 @@ describe('buildQuery and buildUrl', () => {
     expect(paths.recipeNew({ title: 'Spazle' })).toBe('/rezepte/neu?title=Spazle');
     expect(paths.profile({ next: '/rezepte/42' })).toBe('/profil?next=%2Frezepte%2F42');
   });
+
+  it('carries the list filter in detail URLs (two panes from 1024 px, F-34)', () => {
+    expect(paths.recipe(42, { tags: [3, 7], q: 'käse' })).toBe('/rezepte/42?tags=3,7&q=k%C3%A4se');
+    expect(paths.recipe(42, {})).toBe('/rezepte/42');
+    expect(paths.recipe(42, { q: null, tags: [], tagMode: null, sort: null })).toBe('/rezepte/42');
+    expect(matchPath(paths.recipe(42, { tags: [3] }).split('?')[0] ?? '')).toMatchObject({
+      name: 'recipe',
+      params: { id: '42' },
+    });
+  });
 });
 
 describe('redirects (F-02)', () => {
@@ -182,5 +200,387 @@ describe('route meta', () => {
     expect(titleFor('recipes')).toBe('Rezepte');
     expect(titleFor('trash')).toBe('Papierkorb – Rezepte');
     expect(titleFor('notFound')).toBe('Nicht gefunden – Rezepte');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// History handling (router.svelte.ts) on a simulated browser
+
+interface HistoryEntry {
+  state: unknown;
+  url: string;
+}
+
+/** Browser-like History API: pushes drop forward entries, back() fires popstate asynchronously. */
+class FakeHistory {
+  entries: HistoryEntry[];
+  index: number;
+  scrollRestoration = 'auto';
+  readonly #window: EventTarget;
+
+  constructor(window: EventTarget, entries: HistoryEntry[]) {
+    this.#window = window;
+    this.entries = entries.map((e) => ({ state: structuredClone(e.state), url: e.url }));
+    this.index = entries.length - 1;
+  }
+
+  get current(): HistoryEntry {
+    const entry = this.entries[this.index];
+    if (!entry) throw new Error('no current entry');
+    return entry;
+  }
+
+  get state(): unknown {
+    return structuredClone(this.current.state);
+  }
+
+  pushState(state: unknown, _title: string, url?: string): void {
+    this.entries.splice(this.index + 1);
+    this.entries.push({ state: structuredClone(state), url: this.#resolve(url) });
+    this.index++;
+  }
+
+  replaceState(state: unknown, _title: string, url?: string): void {
+    this.entries[this.index] = { state: structuredClone(state), url: this.#resolve(url) };
+  }
+
+  back(): void {
+    this.go(-1);
+  }
+
+  /** Several steps at once, as the long-press history menu of the back button does. */
+  go(delta: number): void {
+    setTimeout(() => {
+      const index = this.index + delta;
+      if (index < 0 || index >= this.entries.length) return;
+      this.index = index;
+      this.#window.dispatchEvent(Object.assign(new Event('popstate'), { state: this.state }));
+    }, 0);
+  }
+
+  #resolve(url: string | undefined): string {
+    if (url === undefined) return this.current.url;
+    const u = new URL(url, `http://app.test${this.current.url}`);
+    return u.pathname + u.search;
+  }
+}
+
+type QueryArg = Record<string, string | number | readonly number[] | null>;
+
+interface RouterApi {
+  readonly route: { name: string; path: string };
+  readonly query: URLSearchParams;
+  readonly url: string;
+  start(options: { hasProfile: () => boolean }): void;
+  navigate(to: string, options?: { replace?: boolean }): void;
+  setQuery(query: QueryArg, options?: { replace?: boolean }): void;
+  pushOverlay(close: () => void): () => void;
+  previousPath(): string | null;
+}
+
+const LIB_DIR = fileURLToPath(new URL('../../client/src/lib/', import.meta.url));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'router-'));
+
+afterAll(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+/** router.svelte.ts compiled with svelte/compiler (Vitest runs without the Svelte plugin). */
+function compileRouter(): string {
+  const source = fs.readFileSync(path.join(LIB_DIR, 'router.svelte.ts'), 'utf8');
+  const { js } = compileModule(stripTypeScriptTypes(source), {
+    filename: 'router.svelte.js',
+    generate: 'client',
+  });
+  const require = createRequire(import.meta.url);
+  const code = js.code.replace(
+    /(\bfrom\s*|\bimport\s*)(['"])([^'"]+)\2/g,
+    (_all, head: string, q: string, spec: string) => {
+      const target = spec.startsWith('.') ? path.resolve(LIB_DIR, spec) : require.resolve(spec);
+      return `${head}${q}${target.replaceAll('\\', '/')}${q}`;
+    },
+  );
+  const file = path.join(tmpDir, 'router.svelte.js');
+  fs.writeFileSync(file, code);
+  return file.replaceAll('\\', '/');
+}
+
+const routerFile = compileRouter();
+
+/** Waits until queued history steps, their popstate events and follow-up promises are done. */
+async function settled(): Promise<void> {
+  for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * A new browser tab showing `entries` (the last one current) and a started router in it; `hasProfile`
+ * false means no profile is remembered on this device (F-02 redirects).
+ */
+async function openTab(
+  entries: HistoryEntry[],
+  hasProfile = true,
+): Promise<{ router: RouterApi; history: FakeHistory }> {
+  const window = Object.assign(new EventTarget(), { scrollY: 0 });
+  const history = new FakeHistory(window, entries);
+  const storage = new Map<string, string>();
+  const at = (): URL => new URL(history.current.url, 'http://app.test');
+  vi.stubGlobal('window', window);
+  vi.stubGlobal('history', history);
+  vi.stubGlobal('location', {
+    get pathname() {
+      return at().pathname;
+    },
+    get search() {
+      return at().search;
+    },
+    get href() {
+      return at().href;
+    },
+    origin: 'http://app.test',
+  });
+  vi.stubGlobal('document', { title: '', addEventListener: () => {}, documentElement: { scrollTop: 0 } });
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
+  vi.stubGlobal('requestAnimationFrame', (fn: () => void) => setTimeout(fn, 0));
+  vi.resetModules();
+  const { router } = (await import(/* @vite-ignore */ routerFile)) as { router: RouterApi };
+  router.start({ hasProfile: () => hasProfile });
+  await settled();
+  return { router, history };
+}
+
+const urls = (history: FakeHistory): string[] => history.entries.map((e) => e.url);
+
+/** Opens a sheet the way Sheet.svelte does; `close` counts the closes the router asks for. */
+function openSheet(router: RouterApi): { close: () => void; closes: () => number; release: () => void } {
+  let count = 0;
+  const close = (): void => {
+    count++;
+  };
+  const release = router.pushOverlay(close);
+  return { close, closes: () => count, release };
+}
+
+describe('setQuery on the simulated History API', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('replaces the entry without an open sheet (filters never add history steps)', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    router.setQuery({ tags: [3] });
+    expect(urls(history)).toEqual(['/rezepte?tags=3']);
+    expect(router.query.get('tags')).toBe('3');
+    expect(router.url).toBe('/rezepte?tags=3');
+  });
+
+  it('keeps an open sheet open and only rewrites its entry', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const sheet = openSheet(router);
+    expect(urls(history)).toEqual(['/rezepte', '/rezepte']);
+
+    router.setQuery({ tags: [3] });
+    router.setQuery({ tags: [3, 7], tagMode: 'any' });
+
+    expect(sheet.closes()).toBe(0);
+    expect(urls(history)).toEqual(['/rezepte', '/rezepte?tags=3,7&tagMode=any']);
+    expect(history.index).toBe(1);
+    expect(history.current.state).toMatchObject({ overlay: true });
+    expect(router.query.get('tags')).toBe('3,7');
+    expect(router.query.get('tagMode')).toBe('any');
+    expect(router.url).toBe('/rezepte?tags=3,7&tagMode=any');
+    expect(router.route.name).toBe('recipes');
+  });
+
+  it('Back closes the sheet and the page keeps the new filter (F-34 AK4)', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const sheet = openSheet(router);
+    router.setQuery({ tags: [3] });
+
+    history.back();
+    await settled();
+
+    expect(sheet.closes()).toBe(1);
+    expect(history.index).toBe(0);
+    expect(urls(history)[0]).toBe('/rezepte?tags=3');
+    expect(history.current.state).not.toMatchObject({ overlay: true });
+    expect(router.url).toBe('/rezepte?tags=3');
+    expect(router.query.get('tags')).toBe('3');
+  });
+
+  it('the close button leaves no extra history step and keeps the filter', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const sheet = openSheet(router);
+    router.setQuery({ tags: [5] });
+
+    sheet.release(); // the sheet closed itself (close button, Escape)
+    await settled();
+    expect(history.index).toBe(0);
+    expect(history.current.url).toBe('/rezepte?tags=5');
+    expect(router.url).toBe('/rezepte?tags=5');
+
+    // Open a recipe and come back: one Back step, the filter is still there.
+    router.navigate('/rezepte/9');
+    expect(urls(history)).toEqual(['/rezepte?tags=5', '/rezepte/9']);
+    expect(router.previousPath()).toBe('/rezepte');
+    history.back();
+    await settled();
+    expect(router.url).toBe('/rezepte?tags=5');
+    expect(router.query.get('tags')).toBe('5');
+  });
+
+  it('a reload with the sheet open keeps the filter set in it (F-34 AK3)', async () => {
+    const { router, history } = await openTab([
+      { state: { key: 'k1', idx: 0 }, url: '/rezepte' },
+      { state: { key: 'k1', idx: 1, overlay: true }, url: '/rezepte?tags=3,7' },
+    ]);
+    expect(history.index).toBe(0);
+    expect(urls(history)[0]).toBe('/rezepte?tags=3,7');
+    expect(history.current.state).toEqual({ key: 'k1', idx: 0 });
+    expect(router.url).toBe('/rezepte?tags=3,7');
+    expect(router.query.get('tags')).toBe('3,7');
+  });
+
+  it('a reload with the sheet open and no filter change keeps the page as it was', async () => {
+    const { router, history } = await openTab([
+      { state: { key: 'k1', idx: 0 }, url: '/rezepte?q=suppe' },
+      { state: { key: 'k1', idx: 1, overlay: true }, url: '/rezepte?q=suppe' },
+    ]);
+    expect(history.index).toBe(0);
+    expect(urls(history)).toEqual(['/rezepte?q=suppe', '/rezepte?q=suppe']);
+    expect(router.url).toBe('/rezepte?q=suppe');
+  });
+
+  it('hands the URL down through stacked overlays to the page entry', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const lower = openSheet(router);
+    const upper = openSheet(router);
+    router.setQuery({ sort: 'title' });
+    expect(urls(history)).toEqual(['/rezepte', '/rezepte', '/rezepte?sort=title']);
+
+    history.back(); // closes the upper sheet only
+    await settled();
+    expect(upper.closes()).toBe(1);
+    expect(lower.closes()).toBe(0);
+    expect(history.index).toBe(1);
+    expect(urls(history).slice(0, 2)).toEqual(['/rezepte', '/rezepte?sort=title']);
+
+    lower.release();
+    await settled();
+    expect(history.index).toBe(0);
+    expect(history.current.url).toBe('/rezepte?sort=title');
+    expect(router.url).toBe('/rezepte?sort=title');
+  });
+
+  it('forgets the handover when a navigation replaces the open sheet', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const sheet = openSheet(router);
+    router.setQuery({ tags: [3] });
+    router.navigate('/rezepte/9');
+    expect(sheet.closes()).toBe(1);
+    expect(history.current.url).toBe('/rezepte/9');
+
+    // A later sheet on the detail must not get the list URL when it closes.
+    const detailSheet = openSheet(router);
+    detailSheet.release();
+    await settled();
+    expect(history.current.url).toBe('/rezepte/9');
+    expect(router.url).toBe('/rezepte/9');
+    expect(router.route.name).toBe('recipe');
+  });
+
+  it('waits for a closing sheet before rewriting the entry of the next one', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte' }]);
+    const first = openSheet(router);
+    first.release(); // its entry is being removed
+    const second = openSheet(router); // pushed after that step
+    router.setQuery({ tags: [4] });
+    await settled();
+
+    expect(second.closes()).toBe(0);
+    expect(history.index).toBe(1);
+    expect(urls(history)).toEqual(['/rezepte', '/rezepte?tags=4']);
+    expect(router.query.get('tags')).toBe('4');
+
+    history.back();
+    await settled();
+    expect(second.closes()).toBe(1);
+    expect(urls(history)[0]).toBe('/rezepte?tags=4');
+  });
+
+  it('a reload with the sheet open that redirects gives the page entry the redirected URL', async () => {
+    // No profile remembered any more (deleted on another device): the list redirects to the choice.
+    const { router, history } = await openTab(
+      [
+        { state: { key: 'k1', idx: 0 }, url: '/rezepte' },
+        { state: { key: 'k1', idx: 1, overlay: true }, url: '/rezepte?tags=3' },
+      ],
+      false,
+    );
+    const choice = paths.profile({ next: '/rezepte?tags=3' });
+    expect(router.route.name).toBe('profile');
+    expect(history.index).toBe(0);
+    expect(history.current.url).toBe(choice);
+    expect(router.url).toBe(choice);
+  });
+
+  it('a jump back past the page (history menu) shows that page and leaves its entry alone', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte/5' }]);
+    router.navigate('/rezepte');
+    const sheet = openSheet(router);
+    router.setQuery({ tags: [3] });
+
+    history.go(-2);
+    await settled();
+    expect(sheet.closes()).toBe(1);
+    expect(history.index).toBe(0);
+    expect(urls(history)).toEqual(['/rezepte/5', '/rezepte', '/rezepte?tags=3']);
+    expect(router.route.name).toBe('recipe');
+    expect(router.url).toBe('/rezepte/5');
+
+    // Nothing is handed over later either: a sheet on the detail closes without touching the URL.
+    const detailSheet = openSheet(router);
+    detailSheet.release();
+    await settled();
+    expect(history.current.url).toBe('/rezepte/5');
+  });
+
+  it('a jump back over two open overlays of the page (history menu) closes both', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte/5' }]);
+    router.navigate('/rezepte');
+    const lower = openSheet(router);
+    const upper = openSheet(router);
+    router.setQuery({ tags: [3] });
+
+    history.go(-2); // from the upper overlay's entry straight to the list's own entry
+    await settled();
+    expect(upper.closes()).toBe(1);
+    expect(lower.closes()).toBe(1);
+    expect(history.index).toBe(1);
+    expect(history.current.url).toBe('/rezepte?tags=3');
+    expect(history.current.state).not.toMatchObject({ overlay: true });
+    expect(router.route.name).toBe('recipes');
+    expect(router.url).toBe('/rezepte?tags=3');
+
+    // The lower sheet's own close (its component unmounts) must not step back once more: that would
+    // leave the list for the detail below it while the list stays on screen.
+    lower.release();
+    upper.release();
+    await settled();
+    expect(history.index).toBe(1);
+    expect(history.current.url).toBe('/rezepte?tags=3');
+    expect(router.previousPath()).toBe('/rezepte/5');
+  });
+
+  it('leaves the page URL alone when a sheet closes without a filter change', async () => {
+    const { router, history } = await openTab([{ state: null, url: '/rezepte?q=suppe' }]);
+    const sheet = openSheet(router);
+    sheet.release();
+    await settled();
+    expect(history.index).toBe(0);
+    expect(history.current.url).toBe('/rezepte?q=suppe');
+    expect(router.url).toBe('/rezepte?q=suppe');
   });
 });

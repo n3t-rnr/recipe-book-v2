@@ -9,7 +9,8 @@
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "vite.config.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "vitest.perf.config.ts"
   ],
   "exclude": ["tests/e2e/**"]
 }
