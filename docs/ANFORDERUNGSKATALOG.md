@@ -233,6 +233,7 @@ Akzeptanzkriterien:
 
 - **F-14**
   - Über `http://<IP>:8080` öffnet „Foto aufnehmen“ auf Android Chrome, iPhone Safari und iPad Safari direkt die Kamera; nach dem Upload erscheint das Foto in Editor, Liste und Detail.
+  - Beobachtung vom 25.09.2026: In Firefox am Handy öffnet „Foto aufnehmen“ die Kamera nicht direkt. Firefox ist am Handy nicht Teil von NF-17 (Android: Chrome); das bleibt bewusst zurückgestellt. „Bild auswählen“ ist davon nicht betroffen.
   - Ein 8-MB-JPEG wird angenommen; während des Uploads zeigt ein Balken den Fortschritt, und das Formular bleibt bedienbar.
   - Eine 25-MB-Datei lehnt der Client schon vor dem Senden mit „Bild zu groß (max. 20 MB)“ ab; der Server bricht einen Stream nach 20.971.520 Bytes mit 413 ab.
   - Eine PDF-Datei mit der Endung .jpg → 415 „Nur JPEG, PNG oder WebP“. Eine HEIC/HEIF-Datei → 415 mit dem Hinweis „Bitte als JPEG speichern – iPhone: Einstellungen > Kamera > Formate > Maximale Kompatibilität; Android: in der Kamera-App HEIF ausschalten“.
